@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 
+if(NOT DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
+  set(CMAKE_BUILD_PARALLEL_LEVEL 4 CACHE STRING "" FORCE)
+endif()
+
 option(PEER_ENABLE_TESTING "Enable testing" ON)
 
 set(PEER_PROJECT peer)
 set(PEER_LIBRARY peer)
 set(PEER_TEST peer_test)
 set(PEER_TARGETS peer-targets)
-
-if(NOT DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
-  set(CMAKE_BUILD_PARALLEL_LEVEL 4)
-endif()
 
 project(
   ${PEER_PROJECT}
@@ -19,7 +19,6 @@ project(
 
 include(FetchContent)
 
-find_package(Threads)
 find_package(kit QUIET)
 
 if(NOT kit_FOUND)
@@ -27,7 +26,7 @@ if(NOT kit_FOUND)
     kit
     GIT_REPOSITORY https://github.com/automainint/kit.git
     GIT_TAG dev)
-  set(KIT_ENABLE_TESTING OFF)
+  set(KIT_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(kit)
 endif()
 
@@ -37,7 +36,7 @@ target_include_directories(
   ${PEER_LIBRARY} INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/source>)
 target_compile_features(${PEER_LIBRARY} PUBLIC c_std_11)
-target_link_libraries(${PEER_LIBRARY} PUBLIC Threads::Threads kit::kit)
+target_link_libraries(${PEER_LIBRARY} PUBLIC kit::kit)
 if(WIN32)
   target_link_libraries(${PEER_LIBRARY} PUBLIC ws2_32)
 endif()
@@ -49,12 +48,10 @@ endif()
 enable_testing()
 
 if(PEER_ENABLE_TESTING)
-  find_package(Threads REQUIRED)
-
   add_executable(${PEER_TEST})
   add_executable(${PEER_PROJECT}::${PEER_TEST} ALIAS ${PEER_TEST})
   target_compile_features(${PEER_TEST} PRIVATE c_std_11)
-  target_link_libraries(${PEER_TEST} PRIVATE ${PEER_LIBRARY} kit::kit_test Threads::Threads)
+  target_link_libraries(${PEER_TEST} PRIVATE ${PEER_LIBRARY} kit::kit_test)
 
   if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(

@@ -7,7 +7,7 @@ FetchContent_Declare(
   peer
   GIT_REPOSITORY https://github.com/automainint/peer.git
   GIT_TAG dev)
-set(PEER_ENABLE_TESTING OFF)
+set(PEER_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(peer)
 
 add_executable(${NAME})
