@@ -1,4 +1,4 @@
 target_sources(
-  ${PEER_TEST}
+  peer_test
     PRIVATE
       main.test.c peer.test.c)

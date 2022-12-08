@@ -81,8 +81,8 @@ def gen_cmake(folder: str, target_name: str):
   write_subdirs(folder, target_name)
 
 def main():
-  gen_cmake(os.path.join('source', 'peer'), '${PEER_LIBRARY}')
-  gen_cmake(os.path.join('source', 'test', 'unittests'), '${PEER_TEST}')
+  gen_cmake(os.path.join('source', 'peer'), 'peer')
+  gen_cmake(os.path.join('source', 'test', 'unittests'), 'peer_test')
 
 if __name__ == '__main__':
   main()

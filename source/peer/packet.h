@@ -21,8 +21,8 @@ typedef struct {
   uint8_t        data[PEER_PACKET_SIZE];
 } peer_packet_t;
 
-KIT_DA_TYPE(peer_packets_t, peer_packet_t);
-KIT_AR_TYPE(peer_packets_ref_t, peer_packet_t);
+typedef KIT_DA(peer_packet_t) peer_packets_t;
+typedef KIT_AR(peer_packet_t) peer_packets_ref_t;
 
 #ifdef __cplusplus
 }

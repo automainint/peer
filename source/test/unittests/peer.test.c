@@ -4,15 +4,28 @@
 #include <kit_test/test.h>
 
 TEST("peer update state host to client") {
-  peer_t             host, client;
-  peer_packets_t     packets;
-  peer_packets_ref_t packets_ref;
-
   /*  Initialize host and client.
    */
-  REQUIRE(peer_init_host(&host, 1, kit_alloc_default()) == KIT_OK);
-  REQUIRE(peer_init_client(&client, 2, kit_alloc_default()) ==
-          KIT_OK);
+  peer_t host, client;
+
+  REQUIRE(peer_init_host(&host, kit_alloc_default()) == KIT_OK);
+  REQUIRE(peer_init_client(&client, kit_alloc_default()) == KIT_OK);
+
+  /*  Open sockets.
+   */
+  peer_address_t const       sockets[]      = { 1, 2, 3 };
+  peer_addresses_ref_t const host_sockets   = { .size   = 2,
+                                                .values = sockets },
+                             client_sockets = {
+                               .size = 1, .values = sockets + 2
+                             };
+
+  REQUIRE(peer_open(&host, host_sockets) == KIT_OK);
+  REQUIRE(host.sockets.size == 2 && host.sockets.values[0] == 1);
+  REQUIRE(host.sockets.size == 2 && host.sockets.values[1] == 2);
+
+  REQUIRE(peer_open(&client, client_sockets) == KIT_OK);
+  REQUIRE(client.sockets.size == 1 && client.sockets.values[0] == 3);
 
   /*  Put data to the host.
    */
@@ -42,27 +55,56 @@ TEST("peer update state host to client") {
   REQUIRE(host.queue.size == 3 && host.buffer.size >= 9 &&
           kit_ar_equal_bytes(1, 9, data, 1, 9, host.buffer.values));
 
-  /*  Initialize client to host connection.
+  /*  Initialize client-to-host connection.
    */
-  REQUIRE(peer_connect(&client, 1) == KIT_OK);
+  REQUIRE(peer_connect(&client, host_sockets.values[0]) == KIT_OK);
 
-  /*  Client will generate packets which must be sent to the host.
+  /*  Client will try to connect and generate packets which must be
+   *  sent to the host.
    */
-  packets            = peer_tick(&client, 0);
-  packets_ref.size   = packets.size;
-  packets_ref.values = packets.values;
+  peer_tick_result_t tick_result;
+  peer_packets_ref_t packets_ref;
+
+  tick_result = peer_tick(&client, 0);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
   REQUIRE(peer_input(&host, packets_ref) == KIT_OK);
-  DA_DESTROY(packets);
-  REQUIRE(client.status == KIT_OK);
+  DA_DESTROY(tick_result.packets);
 
-  /*  Host will generate packets which must be sent to the client.
+  /*  Host will create a new session and generate packets which must
+   *  be sent to the client.
    */
-  packets            = peer_tick(&host, 0);
-  packets_ref.size   = packets.size;
-  packets_ref.values = packets.values;
+  tick_result = peer_tick(&host, 0);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
   REQUIRE(peer_input(&client, packets_ref) == KIT_OK);
-  DA_DESTROY(packets);
-  REQUIRE(host.status == KIT_OK);
+  DA_DESTROY(tick_result.packets);
+
+  /*  Client will join the session and generate packets which must be
+   *  sent to the host.
+   */
+  tick_result = peer_tick(&client, 0);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
+  REQUIRE(peer_input(&host, packets_ref) == KIT_OK);
+  DA_DESTROY(tick_result.packets);
+
+  /*  Host will accept the client and generate packets which must be
+   *  sent to the client.
+   */
+  tick_result = peer_tick(&host, 0);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
+  REQUIRE(peer_input(&client, packets_ref) == KIT_OK);
+  DA_DESTROY(tick_result.packets);
 
   /*  Check if client's data was updated.
    */
