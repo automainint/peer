@@ -7,7 +7,7 @@ extern "C" {
 
 enum {
   PEER_ID_UNDEFINED    = -1,
-  PEER_ACTOR_UNDEFINED = -1,
+  PEER_ACTOR_SELF      = -1,
   PEER_ADDRESS_SIZE    = 80,
   PEER_PACKET_SIZE     = 512,
   PEER_CIPHER_KEY_SIZE = 256,
@@ -41,11 +41,11 @@ enum {
 
   PEER_N_MESSAGE_CHECKSUM = 0,  /* 16 bytes */
   PEER_N_MESSAGE_INDEX    = 16, /*  8 bytes */
-  PEER_N_MESSAGE_ACTOR    = 24, /*  8 bytes */
-  PEER_N_MESSAGE_ID       = 32, /*  4 bytes */
-  PEER_N_MESSAGE_MODE     = 36, /*  2 bytes */
-  PEER_N_MESSAGE_SIZE     = 38, /*  2 bytes */
-  PEER_N_MESSAGE_DATA     = 40,
+  PEER_N_MESSAGE_TIME     = 24, /*  8 bytes */
+  PEER_N_MESSAGE_ACTOR    = 32, /*  8 bytes */
+  PEER_N_MESSAGE_MODE     = 40, /*  2 bytes */
+  PEER_N_MESSAGE_SIZE     = 42, /*  2 bytes */
+  PEER_N_MESSAGE_DATA     = 44,
 
   PEER_MAX_MESSAGE_SIZE = PEER_PACKET_SIZE - PEER_N_PACKET_MESSAGES -
                           PEER_N_MESSAGE_DATA,
@@ -57,6 +57,9 @@ enum {
   PEER_ERROR_INVALID_CIPHER  = 2,
   PEER_ERROR_INVALID_KEY     = 3,
   PEER_ERROR_INVALID_PEER    = 4,
+  PEER_ERROR_INVALID_MESSAGE = 5,
+  PEER_ERROR_INVALID_IDS     = 6,
+  PEER_ERROR_NO_FREE_SLOTS   = 7,
   PEER_ERROR_NOT_IMPLEMENTED = -1
 };
 
