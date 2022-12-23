@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-set(NAME peer-integration-fetch-content)
-project(${NAME} C)
+
+project(peer_integration_fetch_content C)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -10,10 +10,10 @@ FetchContent_Declare(
 set(PEER_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(peer)
 
-add_executable(${NAME})
-target_sources(${NAME} PRIVATE main.c)
-target_link_libraries(${NAME} PRIVATE peer::peer)
+add_executable(peer_integration_fetch_content)
+target_sources(peer_integration_fetch_content PRIVATE main.c)
+target_link_libraries(peer_integration_fetch_content PRIVATE peer::peer)
 
 enable_testing()
-add_test(NAME ${NAME}-run COMMAND ${NAME})
-set_tests_properties(${NAME}-run PROPERTIES TIMEOUT "15")
+add_test(NAME peer_integration_fetch_content-run COMMAND peer_integration_fetch_content)
+set_tests_properties(peer_integration_fetch_content-run PROPERTIES TIMEOUT "15")

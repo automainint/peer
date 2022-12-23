@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-set(NAME peer_integration_find_package)
-project(${NAME}-root)
+
+project(peer_integration_find_package_root)
 
 include(ExternalProject)
 
@@ -13,22 +13,22 @@ ExternalProject_Add(
   -D PEER_ENABLE_TESTING=OFF)
 
 ExternalProject_Add(
-  ${NAME}
+  peer_integration_find_package
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source
   CMAKE_ARGS
   -D CMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/install)
 
-ExternalProject_Add_StepDependencies(${NAME} build peer)
+ExternalProject_Add_StepDependencies(peer_integration_find_package build peer)
 
 include(GNUInstallDirs)
 
 enable_testing()
 
 add_test(
-  NAME ${NAME}-run
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/install/${CMAKE_INSTALL_BINDIR}/${NAME}${CMAKE_EXECUTABLE_SUFFIX})
+  NAME peer_integration_find_package-run
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/install/${CMAKE_INSTALL_BINDIR}/peer_integration_find_package${CMAKE_EXECUTABLE_SUFFIX})
 
 set_tests_properties(
-  ${NAME}-run
+  peer_integration_find_package-run
   PROPERTIES
   TIMEOUT "15")

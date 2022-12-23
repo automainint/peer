@@ -3,6 +3,23 @@
 #define KIT_TEST_FILE_NAME peer
 #include <kit_test/test.h>
 
+/*  TODO
+ *  - Update state host to client.
+ *  - Update state client to client.
+ *  - Actors.
+ *  - Heartbeat packets.
+ *  - Ping.
+ *  - Connection timeout.
+ *  - Multiple clients.
+ *  - Relay.
+ *  - Lobby.
+ *  - Session token.
+ *  - Session version.
+ *  - Reconnect.
+ *  - Encryption.
+ *  - Predefined public keys.
+ */
+
 TEST("peer update state host to client") {
   /*  Initialize host and client.
    */
@@ -13,26 +30,28 @@ TEST("peer update state host to client") {
 
   /*  Open sockets.
    */
-  peer_address_t const       sockets[]      = { 1, 2, 3 };
-  peer_addresses_ref_t const host_sockets   = { .size   = 2,
-                                                .values = sockets },
-                             client_sockets = {
-                               .size = 1, .values = sockets + 2
-                             };
+  ptrdiff_t const      sockets[]      = { 1, 2, 3 };
+  peer_ids_ref_t const host_sockets   = { .size   = 2,
+                                          .values = sockets },
+                       client_sockets = { .size   = 1,
+                                          .values = sockets + 2 };
 
   REQUIRE(peer_open(&host, host_sockets) == KIT_OK);
-  REQUIRE(host.sockets.size == 2 && host.sockets.values[0] == 1);
-  REQUIRE(host.sockets.size == 2 && host.sockets.values[1] == 2);
+  REQUIRE(host.slots.size == 2 && host.slots.values[0].local.id == 1);
+  REQUIRE(host.slots.size == 2 && host.slots.values[1].local.id == 2);
 
   REQUIRE(peer_open(&client, client_sockets) == KIT_OK);
-  REQUIRE(client.sockets.size == 1 && client.sockets.values[0] == 3);
+  REQUIRE(client.slots.size == 1 &&
+          client.slots.values[0].local.id == 3);
 
   /*  Put data to the host.
    */
-  uint8_t         data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-  peer_data_ref_t data_ref[3] = { { .size = 2, .values = data },
-                                  { .size = 4, .values = data + 2 },
-                                  { .size = 3, .values = data + 6 } };
+  uint8_t            data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+  peer_message_ref_t data_ref[3] = {
+    { .size = 2, .values = data },
+    { .size = 4, .values = data + 2 },
+    { .size = 3, .values = data + 6 }
+  };
 
   REQUIRE(peer_queue(&host, data_ref[0]) == KIT_OK);
   REQUIRE(peer_queue(&host, data_ref[1]) == KIT_OK);

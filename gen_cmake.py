@@ -82,7 +82,7 @@ def gen_cmake(folder: str, target_name: str):
 
 def main():
   gen_cmake(os.path.join('source', 'peer'), 'peer')
-  gen_cmake(os.path.join('source', 'test', 'unittests'), 'peer_test')
+  gen_cmake(os.path.join('source', 'test', 'unittests'), 'peer_test_suite')
 
 if __name__ == '__main__':
   main()
