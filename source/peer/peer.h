@@ -40,17 +40,9 @@ typedef KIT_DA(peer_message_entry_t) peer_queue_t;
 typedef KIT_DA(uint8_t) peer_buffer_t;
 
 typedef struct {
-  /*  All sessions.
-   */
-  peer_slots_t slots;
-
-  /*  Shared mutual message queue.
-   */
-  peer_queue_t queue;
-
-  /*  Buffer for messages' data.
-   */
-  peer_buffer_t buffer;
+  peer_slots_t  slots;  /*  All sessions. */
+  peer_queue_t  queue;  /*  Shared mutual message queue. */
+  peer_buffer_t buffer; /*  Buffer for messages' data. */
 } peer_t;
 
 kit_status_t peer_init_host(peer_t *host, kit_allocator_t alloc);

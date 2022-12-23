@@ -19,7 +19,6 @@ kit_status_t peer_cipher_init(peer_cipher_t *cipher,
   memcpy(cipher->key, key, PEER_CIPHER_KEY_SIZE);
 
   /*  TODO
-   *
    *  Initialize the cipher with mt64 random number generator.
    */
 

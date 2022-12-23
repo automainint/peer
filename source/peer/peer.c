@@ -3,22 +3,27 @@
 #include <assert.h>
 #include <string.h>
 
-static_assert(PEER_CIPHER_KEY_SIZE < PEER_MAX_MESSAGE_SIZE,
-              "We should be able to send a message with cipher key");
+static_assert(PEER_N_PACKET_MESSAGES + PEER_N_MESSAGE_DATA <
+                  PEER_PACKET_SIZE,
+              "We should be able to put messages in packets");
+static_assert(
+    2 + PEER_CIPHER_KEY_SIZE < PEER_MAX_MESSAGE_SIZE,
+    "We should be able to send a message with a cipher key");
 static_assert(PEER_MAX_MESSAGE_SIZE < 65536,
               "Max message size sanity check");
 
 typedef struct {
+  uint32_t session;
   uint64_t index;
-  uint16_t mode;
+  uint8_t  mode;
 } packet_header_t;
 
 typedef struct {
-  uint64_t checksum[2];
+  uint64_t checksum;
   uint64_t index;
   uint64_t time;
-  uint64_t actor;
-  uint16_t mode;
+  uint32_t actor;
+  uint8_t  mode;
   uint16_t size;
 } message_header_t;
 
@@ -102,7 +107,6 @@ kit_status_t peer_queue(peer_t *const            peer,
     return PEER_ERROR_INVALID_MESSAGE;
 
   /*  FIXME
-   *
    *  Only host should be able to add messages to the shared queue.
    */
 
@@ -122,7 +126,6 @@ kit_status_t peer_queue(peer_t *const            peer,
     return PEER_ERROR_BAD_ALLOC;
 
   /*  FIXME
-   *
    *  Determine correct time and actor values.
    */
 
@@ -170,6 +173,7 @@ kit_status_t peer_input(peer_t *const            peer,
 peer_tick_result_t peer_tick(peer_t *const     peer,
                              peer_time_t const time_elapsed) {
   assert(peer != NULL);
+  assert(time_elapsed >= 0);
 
   peer_tick_result_t result;
   memset(&result, 0, sizeof result);
@@ -179,9 +183,13 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
     return result;
   }
 
+  if (time_elapsed < 0) {
+    result.status = PEER_ERROR_INVALID_TIME_ELAPSED;
+    return result;
+  }
+
   result.status = PEER_ERROR_NOT_IMPLEMENTED;
   DA_INIT(result.packets, 0, peer->buffer.alloc);
 
   return result;
 }
-
