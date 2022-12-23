@@ -16,7 +16,7 @@ kit_status_t peer_cipher_init(peer_cipher_t *cipher,
   if (key == NULL)
     return PEER_ERROR_INVALID_KEY;
 
-  memcpy(cipher->key, key, PEER_CIPHER_KEY_SIZE);
+  memcpy(cipher->key, key, PEER_MT64_KEY_SIZE);
 
   /*  TODO
    *  Initialize the cipher with mt64 random number generator.

@@ -3,13 +3,17 @@
 #include <assert.h>
 #include <string.h>
 
+static_assert(((ptrdiff_t) -1) == PEER_ID_UNDEFINED,
+              "Undefine id sanity check");
+static_assert(((ptrdiff_t) -1) == PEER_ACTOR_SELF,
+              "Self actor sanity check");
 static_assert(PEER_N_PACKET_MESSAGES + PEER_N_MESSAGE_DATA <
                   PEER_PACKET_SIZE,
               "We should be able to put messages in packets");
 static_assert(
-    2 + PEER_CIPHER_KEY_SIZE < PEER_MAX_MESSAGE_SIZE,
+    2 + PEER_MT64_KEY_SIZE < PEER_MAX_MESSAGE_SIZE,
     "We should be able to send a message with a cipher key");
-static_assert(PEER_MAX_MESSAGE_SIZE < 65536,
+static_assert(PEER_MAX_MESSAGE_SIZE < 1024,
               "Max message size sanity check");
 
 typedef struct {

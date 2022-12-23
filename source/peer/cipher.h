@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 typedef struct {
-  uint8_t   key[PEER_CIPHER_KEY_SIZE];
+  uint8_t   key[PEER_MT64_KEY_SIZE];
   ptrdiff_t index;
 } peer_cipher_t;
 
