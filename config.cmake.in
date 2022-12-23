@@ -1,7 +1,6 @@
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
-find_dependency(Threads)
 find_dependency(kit)
 
-include("${CMAKE_CURRENT_LIST_DIR}/@PEER_TARGETS@.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/peer-targets.cmake")
