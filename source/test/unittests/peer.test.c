@@ -20,7 +20,7 @@
  *  - Predefined public keys.
  */
 
-TEST("peer update state host to client") {
+TEST("peer host to client initial state update") {
   /*  Initialize host and client.
    */
   peer_t host, client;
@@ -41,6 +41,13 @@ TEST("peer update state host to client") {
   REQUIRE(host.slots.size == 2 && host.slots.values[0].local.id == 1);
   REQUIRE(host.slots.size == 2 && host.slots.values[1].local.id == 2);
 
+  if (host.slots.size == 2) {
+    /*  Specify the address data for host.
+     */
+    host.slots.values[1].local.address_size    = 1;
+    host.slots.values[1].local.address_data[0] = 2;
+  }
+
   REQUIRE(peer_open(&client, client_sockets) == KIT_OK);
   REQUIRE(client.slots.size == 1 &&
           client.slots.values[0].local.id == 3);
@@ -60,6 +67,7 @@ TEST("peer update state host to client") {
 
   /*  Check if host's data was updated.
    */
+  REQUIRE(host.queue.size == 3);
   REQUIRE(host.queue.size == 3 && host.queue.values[0].time == 0);
   REQUIRE(host.queue.size == 3 && host.queue.values[0].actor == 0);
   REQUIRE(host.queue.size == 3 && host.queue.values[0].size == 2);
@@ -104,6 +112,13 @@ TEST("peer update state host to client") {
   REQUIRE(peer_input(&client, packets_ref) == KIT_OK);
   DA_DESTROY(tick_result.packets);
 
+  /*  Check if client did receive the session address and resolve the
+   *  address id.
+   */
+  REQUIRE(client.slots.values[0].remote.address_size == 1);
+  REQUIRE(client.slots.values[0].remote.address_data[0] == 2);
+  client.slots.values[0].remote.id = 2;
+
   /*  Client will join the session and generate packets which must be
    *  sent to the host.
    */
@@ -128,6 +143,7 @@ TEST("peer update state host to client") {
 
   /*  Check if client's data was updated.
    */
+  REQUIRE(client.queue.size == 3);
   REQUIRE(client.queue.size == 3 && client.queue.values[0].time == 0);
   REQUIRE(client.queue.size == 3 &&
           client.queue.values[0].actor == 0);

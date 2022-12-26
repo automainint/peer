@@ -26,9 +26,16 @@ typedef struct {
   uint8_t   address_data[PEER_ADDRESS_SIZE];
 } peer_endpoint_t;
 
+typedef enum {
+  PEER_SLOT_EMPTY,
+  PEER_SLOT_SESSION_REQUEST,
+  PEER_SLOT_READY
+} peer_slot_state_t;
+
 typedef struct {
-  peer_endpoint_t local;
-  peer_endpoint_t remote;
+  peer_slot_state_t state;
+  peer_endpoint_t   local;
+  peer_endpoint_t   remote;
 } peer_slot_t;
 
 typedef KIT_DA(peer_slot_t) peer_slots_t;

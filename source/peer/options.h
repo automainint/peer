@@ -18,8 +18,7 @@ enum {
       20, /* Address size should be big enough to contain IPv4 and
              IPv6 addresses and ports (6 bytes or 18 bytes). */
 
-  PEER_ID_UNDEFINED = -1,
-  PEER_ACTOR_SELF   = -1,
+  PEER_UNDEFINED = -1, /* Undefined value for id, index and agent. */
 
   /*  Protocol settings.
    */
