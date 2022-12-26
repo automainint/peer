@@ -50,29 +50,32 @@ kit_status_t peer_pack(ptrdiff_t const           source_id,
       offset = PEER_N_PACKET_MESSAGES;
     }
 
-    /*  Make sure, the message size value is correct.
-     */
+    {
+      /*  Make sure, the message size value is correct.
+       */
 
-    assert(
-        messages.values[i].size ==
-        (((uint16_t) peer_read_u8(messages.values[i].values +
-                                  PEER_N_MESSAGE_SIZE)) |
-         ((((uint16_t) peer_read_u8(messages.values[i].values +
-                                    PEER_N_MESSAGE_SIZE_AND_MODE)) &
-           0x03)
-          << 8)));
+      ptrdiff_t const message_size = (ptrdiff_t)
+          peer_read_message_size(messages.values[i].values);
 
-    /*  Add message to the current packet.
-     */
+      assert(messages.values[i].size == message_size);
 
-    assert(out_packets->size > 0);
-    assert(messages.values[i].size + PEER_N_PACKET_MESSAGES <
-           PEER_PACKET_SIZE);
+      if (messages.values[i].size != message_size)
+        return PEER_ERROR_INVALID_MESSAGE_SIZE;
+    }
 
-    ptrdiff_t const m = out_packets->size - 1;
+    {
+      /*  Add message to the current packet.
+       */
 
-    memcpy(out_packets->values[m].data + offset,
-           messages.values[i].values, messages.values[i].size);
+      assert(out_packets->size > 0);
+      assert(messages.values[i].size + PEER_N_PACKET_MESSAGES <
+             PEER_PACKET_SIZE);
+
+      ptrdiff_t const m = out_packets->size - 1;
+
+      memcpy(out_packets->values[m].data + offset,
+             messages.values[i].values, messages.values[i].size);
+    }
 
     offset += messages.values[i].size;
   }
@@ -126,14 +129,8 @@ kit_status_t peer_unpack(peer_packets_ref_t const packets,
     ptrdiff_t offset = PEER_N_PACKET_MESSAGES;
 
     while (offset + PEER_N_MESSAGE_DATA <= PEER_PACKET_SIZE) {
-      uint8_t const s0 = peer_read_u8(packets.values[i].data +
-                                      offset + PEER_N_MESSAGE_SIZE);
-      uint8_t const s1 = peer_read_u8(packets.values[i].data +
-                                      offset +
-                                      PEER_N_MESSAGE_SIZE_AND_MODE) &
-                         0x3;
-      ptrdiff_t const size = (ptrdiff_t) (((uint16_t) s0) |
-                                          (((uint16_t) s1) << 8));
+      ptrdiff_t const size = (ptrdiff_t) peer_read_message_size(
+          packets.values[i].data + offset);
 
       if (size == 0)
         break;

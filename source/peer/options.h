@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 enum {
   /*  Internal constants.
    */
@@ -97,6 +99,8 @@ enum {
   PEER_ERROR_INVALID_MESSAGE_SIZE = 256,
   PEER_ERROR_NOT_IMPLEMENTED      = -1
 };
+
+typedef int64_t peer_time_t;
 
 #ifdef __cplusplus
 }

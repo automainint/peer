@@ -25,8 +25,9 @@ TEST("peer update state host to client") {
    */
   peer_t host, client;
 
-  REQUIRE(peer_init_host(&host, kit_alloc_default()) == KIT_OK);
-  REQUIRE(peer_init_client(&client, kit_alloc_default()) == KIT_OK);
+  REQUIRE(peer_init(&host, PEER_HOST, kit_alloc_default()) == KIT_OK);
+  REQUIRE(peer_init(&client, PEER_CLIENT, kit_alloc_default()) ==
+          KIT_OK);
 
   /*  Open sockets.
    */

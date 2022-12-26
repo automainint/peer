@@ -22,22 +22,22 @@ TEST("packet pack and unpack several messages") {
   kit_allocator_t alloc = kit_alloc_default();
 
   uint8_t messages[] = {
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10,                //
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,        //
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 //
+    1, 2,  3, 4,  5, 6, 7, 8,  9, 10, 1, 2,  3,  4,  5,  6,
+    7, 8,  9, 10, 1, 2, 3, 4,  5, 6,  7, 8,  9,  10, 1,  2,
+    3, 4,  5, 6,  7, 8, 9, 10, 1, 2,  3, 4,  5,  6,  7,  8,
+    9, 10, 1, 2,  3, 4, 5, 6,  7, 8,  9, 10, 11, 12, 1,  2,
+    3, 4,  5, 6,  7, 8, 9, 10, 1, 2,  3, 4,  5,  6,  7,  8,
+    9, 10, 1, 2,  3, 4, 5, 6,  7, 8,  9, 10, 11, 12, 13, 14
   };
 
-  peer_write_u8(messages + PEER_N_MESSAGE_SIZE, 10);
-  peer_write_u8(messages + PEER_N_MESSAGE_SIZE_AND_MODE, 0);
-  peer_write_u8(messages + 10 + PEER_N_MESSAGE_SIZE, 12);
-  peer_write_u8(messages + 10 + PEER_N_MESSAGE_SIZE_AND_MODE, 0);
-  peer_write_u8(messages + 22 + PEER_N_MESSAGE_SIZE, 14);
-  peer_write_u8(messages + 22 + PEER_N_MESSAGE_SIZE_AND_MODE, 0);
+  peer_write_message_size(messages, 30);
+  peer_write_message_size(messages + 30, 32);
+  peer_write_message_size(messages + 62, 34);
 
   peer_message_ref_t const mrefs[] = {
-    { .size = 10, .values = messages },
-    { .size = 12, .values = messages + 10 },
-    { .size = 14, .values = messages + 22 }
+    { .size = 30, .values = messages },
+    { .size = 32, .values = messages + 30 },
+    { .size = 34, .values = messages + 62 }
   };
 
   peer_messages_ref_t const mref = { .size = 3, .values = mrefs };
@@ -55,6 +55,7 @@ TEST("packet pack and unpack several messages") {
 
   REQUIRE(peer_unpack(pref, &foo) == KIT_OK);
 
+  REQUIRE(foo.size == 3);
   REQUIRE(foo.size == 3 && AR_EQUAL(mrefs[0], foo.values[0]));
   REQUIRE(foo.size == 3 && AR_EQUAL(mrefs[1], foo.values[1]));
   REQUIRE(foo.size == 3 && AR_EQUAL(mrefs[2], foo.values[2]));
@@ -71,11 +72,8 @@ TEST("packet pack and unpack a lot of messages") {
 
   for (ptrdiff_t i = 0; i < sizeof messages; i++) messages[i] = i;
 
-  for (ptrdiff_t i = 0; i < 10; i++) {
-    peer_write_u8(messages + i * 200 + PEER_N_MESSAGE_SIZE, 200);
-    peer_write_u8(messages + i * 200 + PEER_N_MESSAGE_SIZE_AND_MODE,
-                  0);
-  }
+  for (ptrdiff_t i = 0; i < 10; i++)
+    peer_write_message_size(messages + i * 200, 200);
 
   peer_message_ref_t const mrefs[] = {
     { .size = 200, .values = messages },
@@ -105,6 +103,7 @@ TEST("packet pack and unpack a lot of messages") {
 
   REQUIRE(peer_unpack(pref, &foo) == KIT_OK);
 
+  REQUIRE(foo.size == 10);
   REQUIRE(foo.size == 10 && AR_EQUAL(mrefs[0], foo.values[0]));
   REQUIRE(foo.size == 10 && AR_EQUAL(mrefs[1], foo.values[1]));
   REQUIRE(foo.size == 10 && AR_EQUAL(mrefs[2], foo.values[2]));

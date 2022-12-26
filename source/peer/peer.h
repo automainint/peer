@@ -10,8 +10,6 @@
 extern "C" {
 #endif
 
-typedef int64_t peer_time_t;
-
 typedef struct {
   peer_time_t time;
   ptrdiff_t   actor;
@@ -39,14 +37,17 @@ typedef KIT_AR(ptrdiff_t) peer_ids_ref_t;
 typedef KIT_DA(peer_message_entry_t) peer_queue_t;
 typedef KIT_DA(uint8_t) peer_buffer_t;
 
+typedef enum { PEER_HOST, PEER_CLIENT } peer_mode_t;
+
 typedef struct {
+  peer_mode_t   mode;
   peer_slots_t  slots;  /*  All sessions. */
   peer_queue_t  queue;  /*  Shared mutual message queue. */
   peer_buffer_t buffer; /*  Buffer for messages' data. */
 } peer_t;
 
-kit_status_t peer_init_host(peer_t *host, kit_allocator_t alloc);
-kit_status_t peer_init_client(peer_t *client, kit_allocator_t alloc);
+kit_status_t peer_init(peer_t *host, peer_mode_t mode,
+                       kit_allocator_t alloc);
 kit_status_t peer_open(peer_t *peer, peer_ids_ref_t ids);
 kit_status_t peer_destroy(peer_t *peer);
 kit_status_t peer_queue(peer_t *peer, peer_message_ref_t message);

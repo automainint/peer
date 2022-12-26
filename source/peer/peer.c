@@ -1,5 +1,6 @@
 #include "peer.h"
 
+#include "serial.h"
 #include <assert.h>
 #include <string.h>
 
@@ -17,43 +18,20 @@ static_assert(PEER_PACKET_SIZE < 65536, "Packet size sanity check");
 static_assert(PEER_MAX_MESSAGE_SIZE < 1024,
               "Max message size sanity check");
 
-typedef struct {
-  uint32_t session;
-  uint64_t index;
-  uint8_t  mode;
-} packet_header_t;
-
-typedef struct {
-  uint64_t checksum;
-  uint64_t index;
-  uint64_t time;
-  uint32_t actor;
-  uint8_t  mode;
-  uint16_t size;
-} message_header_t;
-
-kit_status_t peer_init(peer_t *const         peer,
+kit_status_t peer_init(peer_t *const peer, peer_mode_t const mode,
                        kit_allocator_t const alloc) {
   assert(peer != NULL);
+  assert(mode == PEER_HOST || mode == PEER_CLIENT);
 
   if (peer == NULL)
     return PEER_ERROR_INVALID_PEER;
 
   memset(peer, 0, sizeof *peer);
+  peer->mode = mode;
   DA_INIT(peer->slots, 0, alloc);
   DA_INIT(peer->queue, 0, alloc);
   DA_INIT(peer->buffer, 0, alloc);
   return KIT_OK;
-}
-
-kit_status_t peer_init_host(peer_t *const         host,
-                            kit_allocator_t const alloc) {
-  return peer_init(host, alloc);
-}
-
-kit_status_t peer_init_client(peer_t *const         client,
-                              kit_allocator_t const alloc) {
-  return peer_init(client, alloc);
 }
 
 kit_status_t peer_open(peer_t *const peer, peer_ids_ref_t const ids) {
@@ -111,35 +89,41 @@ kit_status_t peer_queue(peer_t *const            peer,
   if (message.values == NULL)
     return PEER_ERROR_INVALID_MESSAGE;
 
-  /*  FIXME
-   *  Only host should be able to add messages to the shared queue.
-   */
+  if (peer->mode == PEER_HOST) {
+    ptrdiff_t const offset = peer->buffer.size;
 
-  ptrdiff_t const offset = peer->buffer.size;
+    DA_RESIZE(peer->buffer, offset + message.size);
+    if (peer->buffer.size != offset + message.size)
+      return PEER_ERROR_BAD_ALLOC;
 
-  DA_RESIZE(peer->buffer, offset + message.size);
-  if (peer->buffer.size != offset + message.size)
-    return PEER_ERROR_BAD_ALLOC;
+    if (message.size > 0)
+      memcpy(peer->buffer.values + offset, message.values,
+             message.size);
 
-  if (message.size > 0)
-    memcpy(peer->buffer.values + offset, message.values,
-           message.size);
+    ptrdiff_t index = peer->queue.size;
+    DA_RESIZE(peer->queue, index + 1);
+    if (peer->queue.size != index + 1)
+      return PEER_ERROR_BAD_ALLOC;
 
-  ptrdiff_t index = peer->queue.size;
-  DA_RESIZE(peer->queue, index + 1);
-  if (peer->queue.size != index + 1)
-    return PEER_ERROR_BAD_ALLOC;
+    /*  FIXME
+     *  Determine correct time and actor values.
+     */
 
-  /*  FIXME
-   *  Determine correct time and actor values.
-   */
+    memset(peer->queue.values + index, 0, sizeof *peer->queue.values);
 
-  memset(peer->queue.values + index, 0, sizeof *peer->queue.values);
+    peer->queue.values[index].time   = 0;
+    peer->queue.values[index].actor  = 0;
+    peer->queue.values[index].size   = message.size;
+    peer->queue.values[index].offset = offset;
+  }
 
-  peer->queue.values[index].time   = 0;
-  peer->queue.values[index].actor  = 0;
-  peer->queue.values[index].size   = message.size;
-  peer->queue.values[index].offset = offset;
+  if (peer->mode == PEER_CLIENT) {
+    /*  FIXME
+     *  Put messages to the personal queue for the client mode.
+     */
+
+    return PEER_ERROR_NOT_IMPLEMENTED;
+  }
 
   return KIT_OK;
 }
@@ -172,7 +156,105 @@ kit_status_t peer_input(peer_t *const            peer,
   if (peer == NULL)
     return PEER_ERROR_INVALID_PEER;
 
-  return PEER_ERROR_NOT_IMPLEMENTED;
+  kit_allocator_t const alloc = peer->buffer.alloc;
+
+  kit_status_t status = KIT_OK;
+
+  for (ptrdiff_t i = 0; i < packets.size; i++) {
+    peer_packet_t const *const packet = packets.values + i;
+
+    int slot_found = 0;
+
+    for (ptrdiff_t j = 0; j < peer->slots.size; j++) {
+      peer_slot_t *const slot = peer->slots.values + j;
+
+      if (slot->local.id != packet->destination_id ||
+          slot->remote.id != packet->source_id)
+        continue;
+
+      peer_messages_t messages;
+      DA_INIT(messages, 0, alloc);
+
+      peer_packets_ref_t const ref = { .size = 1, .values = packet };
+
+      status |= peer_unpack(ref, &messages);
+
+      for (ptrdiff_t k = 0; k < messages.size; k++) {
+        peer_message_t *const message = messages.values + k;
+
+        // uint64_t const checksum = peer_read_message_checksum(
+        //     message->values);
+        ptrdiff_t const data_size = peer_read_message_data_size(
+            message->values);
+        // uint8_t const mode =
+        // peer_read_message_mode(message->values);
+        ptrdiff_t const index = peer_read_message_index(
+            message->values);
+        peer_time_t const time = peer_read_message_time(
+            message->values);
+        uint32_t const actor = peer_read_message_actor(
+            message->values);
+
+        ptrdiff_t const offset = peer->buffer.size;
+
+        DA_RESIZE(peer->buffer, offset + data_size);
+        if (peer->buffer.size != offset + data_size) {
+          status |= PEER_ERROR_BAD_ALLOC;
+          break;
+        }
+
+        if (data_size > 0)
+          memcpy(peer->buffer.values + offset,
+                 message->values + PEER_N_MESSAGE_DATA, data_size);
+
+        ptrdiff_t const n = peer->queue.size;
+
+        if (index >= n) {
+
+          DA_RESIZE(peer->queue, index + 1);
+          if (peer->queue.size != index + 1) {
+            status |= PEER_ERROR_BAD_ALLOC;
+            break;
+          }
+
+          memset(peer->queue.values + n, 0,
+                 (index + 1 - n) * sizeof *peer->queue.values);
+        }
+
+        peer->queue.values[index].time   = time;
+        peer->queue.values[index].actor  = actor;
+        peer->queue.values[index].size   = data_size;
+        peer->queue.values[index].offset = offset;
+      }
+
+      for (ptrdiff_t k = 0; k < messages.size; k++)
+        DA_DESTROY(messages.values[k]);
+      DA_DESTROY(messages);
+
+      slot_found = 1;
+      break;
+    }
+
+    if (slot_found || peer->mode != PEER_HOST ||
+        peer->slots.size == 0 ||
+        peer->slots.values[0].remote.id != PEER_ID_UNDEFINED)
+      continue;
+
+    /*  Assign a slot for the client.
+     */
+
+    for (ptrdiff_t j = 1; j < peer->slots.size; j++) {
+      peer_slot_t *const slot = peer->slots.values + j;
+
+      if (slot->remote.id == PEER_ID_UNDEFINED &&
+          slot->local.address_size > 0) {
+        slot->remote.id = packet->source_id;
+        break;
+      }
+    }
+  }
+
+  return status;
 }
 
 peer_tick_result_t peer_tick(peer_t *const     peer,
@@ -180,8 +262,11 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
   assert(peer != NULL);
   assert(time_elapsed >= 0);
 
+  kit_allocator_t const alloc = peer->buffer.alloc;
+
   peer_tick_result_t result;
   memset(&result, 0, sizeof result);
+  DA_INIT(result.packets, 0, alloc);
 
   if (peer == NULL) {
     result.status = PEER_ERROR_INVALID_PEER;
@@ -193,8 +278,67 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
     return result;
   }
 
-  result.status = PEER_ERROR_NOT_IMPLEMENTED;
-  DA_INIT(result.packets, 0, peer->buffer.alloc);
+  result.status = KIT_OK;
+
+  if (peer->mode == PEER_HOST) {
+    ptrdiff_t const size = peer->queue.size;
+
+    DA(peer_message_t) messages;
+    DA(peer_message_ref_t) refs;
+
+    DA_INIT(messages, size, alloc);
+    DA_INIT(refs, size, alloc);
+
+    if (messages.size == size && refs.size == size) {
+      memset(messages.values, 0, size * sizeof *messages.values);
+
+      for (ptrdiff_t i = 0; i < size; i++) {
+        ptrdiff_t const full_size = PEER_N_MESSAGE_DATA +
+                                    peer->queue.values[i].size;
+
+        DA_INIT(messages.values[i], full_size, alloc);
+        if (messages.values[i].size != full_size) {
+          result.status = KIT_ERROR_BAD_ALLOC;
+          break;
+        }
+
+        peer_write_message(
+            messages.values[i].values, PEER_MESSAGE_MODE_APPLICATION,
+            i, 0, 0, peer->queue.values[i].size,
+            peer->buffer.values + peer->queue.values[i].offset);
+      }
+
+      for (ptrdiff_t i = 0; i < size; i++) {
+        refs.values[i].size   = messages.values[i].size;
+        refs.values[i].values = messages.values[i].values;
+      }
+
+      peer_messages_ref_t mref = { .size   = refs.size,
+                                   .values = refs.values };
+
+      for (ptrdiff_t i = 1; i < peer->slots.size; i++)
+        result.status |= peer_pack(peer->slots.values[0].local.id,
+                                   peer->slots.values[i].remote.id,
+                                   mref, &result.packets);
+
+    } else
+      result.status = PEER_ERROR_BAD_ALLOC;
+
+    for (ptrdiff_t i = 0; i < messages.size; i++)
+      DA_DESTROY(messages.values[i]);
+
+    DA_DESTROY(messages);
+    DA_DESTROY(refs);
+  }
+
+  if (peer->mode == PEER_CLIENT) {
+    peer_messages_ref_t mref = { .size = 0, .values = NULL };
+
+    if (peer->slots.size > 0)
+      result.status |= peer_pack(peer->slots.values[0].local.id,
+                                 peer->slots.values[0].remote.id,
+                                 mref, &result.packets);
+  }
 
   return result;
 }
