@@ -1,11 +1,10 @@
 #include "../../peer/peer.h"
 
-#define KIT_TEST_FILE_NAME peer
+#define KIT_TEST_FILE peer
 #include <kit_test/test.h>
 
 /*  TODO
- *  - Update state host to client.
- *  - Update state client to client.
+ *  - Client to client state update.
  *  - Actors.
  *  - Heartbeat packets.
  *  - Ping.
@@ -80,7 +79,7 @@ TEST("peer host to client initial state update") {
   REQUIRE(host.queue.size == 3 && host.queue.values[2].actor == 0);
   REQUIRE(host.queue.size == 3 && host.queue.values[2].size == 3);
   REQUIRE(host.queue.size == 3 && host.queue.values[2].offset == 6);
-  REQUIRE(host.queue.size == 3 && host.buffer.size >= 9 &&
+  REQUIRE(host.buffer.size >= 9 &&
           kit_ar_equal_bytes(1, 9, data, 1, 9, host.buffer.values));
 
   /*  Initialize client-to-host connection.
@@ -162,7 +161,7 @@ TEST("peer host to client initial state update") {
   REQUIRE(client.queue.size == 3 && client.queue.values[2].size == 3);
   REQUIRE(client.queue.size == 3 &&
           client.queue.values[2].offset == 6);
-  REQUIRE(client.queue.size == 3 && client.buffer.size >= 9 &&
+  REQUIRE(client.buffer.size >= 9 &&
           kit_ar_equal_bytes(1, 9, data, 1, 9, client.buffer.values));
 
   /*  Destroy the host and the client.

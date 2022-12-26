@@ -1,7 +1,7 @@
 #include "../../peer/packet.h"
 #include "../../peer/serial.h"
 
-#define KIT_TEST_FILE_NAME packet
+#define KIT_TEST_FILE packet
 #include <kit_test/test.h>
 
 TEST("packet pack should always return at least one packet") {
