@@ -13,6 +13,7 @@ static_assert(PEER_N_PACKET_MESSAGES + PEER_N_MESSAGE_DATA <
 static_assert(
     2 + PEER_MT64_KEY_SIZE < PEER_MAX_MESSAGE_SIZE,
     "We should be able to send a message with a cipher key");
+static_assert(PEER_PACKET_SIZE < 65536, "Packet size sanity check");
 static_assert(PEER_MAX_MESSAGE_SIZE < 1024,
               "Max message size sanity check");
 

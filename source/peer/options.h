@@ -6,20 +6,38 @@ extern "C" {
 #endif
 
 enum {
-  PEER_VERSION = -65535, /* Development version. */
+  /*  Internal constants.
+   */
 
-  PEER_ID_UNDEFINED = -1,
-  PEER_ACTOR_SELF   = -1,
-
-  PEER_MT64_KEY_SIZE = 128, /* Key size for mt64 stream cipher. */
+  PEER_VERSION     = 1,
+  PEER_DEVELOPMENT = 1,
 
   PEER_ADDRESS_SIZE =
       20, /* Address size should be big enough to contain IPv4 and
              IPv6 addresses and ports (6 bytes or 18 bytes). */
 
+  PEER_ID_UNDEFINED = -1,
+  PEER_ACTOR_SELF   = -1,
+
+  /*  Protocol settings.
+   */
+
   PEER_PACKET_SIZE =
       400, /* On average, peer sends
               PEER_PACKET_SIZE / 10 = 40 kB per second. */
+
+  PEER_MT64_KEY_SIZE = 128, /* Key size for mt64 stream cipher. */
+
+  PEER_HEARTBEAT_TIMEOUT =
+      10, /* Peer will send a heartbeat notification if no messages
+             was sent in 10 ms. */
+
+  PEER_PING_TIMEOUT =
+      200, /* Peer will send a ping request every 200 ms. */
+
+  PEER_CONNECTION_TIMEOUT =
+      2000, /* Peer will change the connection status to lost after 2
+               seconds of silence. */
 
   /*  Packet mode values.
    */
@@ -49,14 +67,15 @@ enum {
   PEER_N_PACKET_SESSION  = 0,  /* 4 bytes */
   PEER_N_PACKET_INDEX    = 4,  /* 8 bytes */
   PEER_N_PACKET_MODE     = 12, /* 1 byte */
-  PEER_N_PACKET_MESSAGES = 13,
+  PEER_N_PACKET_SIZE     = 13, /* 2 bytes */
+  PEER_N_PACKET_MESSAGES = 15,
 
   PEER_N_MESSAGE_CHECKSUM      = 0,  /* 8 bytes */
-  PEER_N_MESSAGE_INDEX         = 8,  /* 8 bytes */
-  PEER_N_MESSAGE_TIME          = 16, /* 8 bytes */
-  PEER_N_MESSAGE_ACTOR         = 24, /* 4 bytes */
-  PEER_N_MESSAGE_MODE_AND_SIZE = 28, /* 1 byte */
-  PEER_N_MESSAGE_SIZE          = 29, /* 1 byte */
+  PEER_N_MESSAGE_SIZE          = 8,  /* 1 byte */
+  PEER_N_MESSAGE_SIZE_AND_MODE = 9,  /* 1 byte */
+  PEER_N_MESSAGE_INDEX         = 10, /* 8 bytes */
+  PEER_N_MESSAGE_TIME          = 18, /* 8 bytes */
+  PEER_N_MESSAGE_ACTOR         = 26, /* 4 bytes */
   PEER_N_MESSAGE_DATA          = 30,
 
   PEER_MAX_MESSAGE_SIZE =
@@ -69,12 +88,13 @@ enum {
 
   PEER_ERROR_BAD_ALLOC            = 1,
   PEER_ERROR_INVALID_CIPHER       = 2,
-  PEER_ERROR_INVALID_KEY          = 3,
-  PEER_ERROR_INVALID_PEER         = 4,
-  PEER_ERROR_INVALID_MESSAGE      = 5,
-  PEER_ERROR_INVALID_IDS          = 6,
-  PEER_ERROR_INVALID_TIME_ELAPSED = 7,
-  PEER_ERROR_NO_FREE_SLOTS        = 8,
+  PEER_ERROR_INVALID_KEY          = 4,
+  PEER_ERROR_INVALID_PEER         = 8,
+  PEER_ERROR_INVALID_MESSAGE      = 16,
+  PEER_ERROR_INVALID_IDS          = 32,
+  PEER_ERROR_INVALID_TIME_ELAPSED = 64,
+  PEER_ERROR_NO_FREE_SLOTS        = 128,
+  PEER_ERROR_INVALID_MESSAGE_SIZE = 256,
   PEER_ERROR_NOT_IMPLEMENTED      = -1
 };
 

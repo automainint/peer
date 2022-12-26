@@ -16,7 +16,6 @@ extern "C" {
 typedef struct {
   ptrdiff_t source_id;
   ptrdiff_t destination_id;
-  ptrdiff_t size;
   uint8_t   data[PEER_PACKET_SIZE];
 } peer_packet_t;
 
@@ -27,21 +26,12 @@ typedef KIT_AR(uint8_t) peer_message_ref_t;
 typedef KIT_DA(peer_message_t) peer_messages_t;
 typedef KIT_AR(peer_message_ref_t) peer_messages_ref_t;
 
-typedef struct {
-  kit_status_t   status;
-  peer_packets_t packets;
-} peer_pack_result_t;
+kit_status_t peer_pack(ptrdiff_t source_id, ptrdiff_t destination_id,
+                       peer_messages_ref_t messages,
+                       peer_packets_t     *out_packets);
 
-peer_pack_result_t peer_pack(peer_messages_ref_t messages,
-                             kit_allocator_t     alloc);
-
-typedef struct {
-  kit_status_t    status;
-  peer_messages_t messages;
-} peer_unpack_result_t;
-
-peer_unpack_result_t peer_unpack(peer_packets_ref_t packets,
-                                 kit_allocator_t    alloc);
+kit_status_t peer_unpack(peer_packets_ref_t packets,
+                         peer_messages_t   *out_messages);
 
 #ifdef __cplusplus
 }
