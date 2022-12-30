@@ -311,7 +311,7 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
 
         DA_INIT(messages.values[i], full_size, alloc);
         if (messages.values[i].size != full_size) {
-          result.status = KIT_ERROR_BAD_ALLOC;
+          result.status = PEER_ERROR_BAD_ALLOC;
           break;
         }
 
