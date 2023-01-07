@@ -32,11 +32,7 @@ add_library(peer::peer ALIAS peer)
 target_include_directories(
   peer INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/source>)
-target_compile_features(peer PUBLIC c_std_11)
 target_link_libraries(peer PUBLIC kit::kit)
-if(WIN32)
-  target_link_libraries(peer PUBLIC ws2_32)
-endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(peer PUBLIC -pedantic -Wall -Werror)
@@ -47,7 +43,6 @@ enable_testing()
 if(PEER_ENABLE_TESTING)
   add_executable(peer_test_suite)
   add_executable(peer::peer_test_suite ALIAS peer_test_suite)
-  target_compile_features(peer_test_suite PRIVATE c_std_11)
   target_link_libraries(peer_test_suite PRIVATE peer kit::kit_test)
 
   if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")

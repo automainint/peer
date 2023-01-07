@@ -16,6 +16,7 @@ extern "C" {
 typedef struct {
   ptrdiff_t source_id;
   ptrdiff_t destination_id;
+  ptrdiff_t size;
   uint8_t   data[PEER_PACKET_SIZE];
 } peer_packet_t;
 

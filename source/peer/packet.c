@@ -26,6 +26,8 @@ kit_status_t peer_pack(ptrdiff_t const           source_id,
         assert(offset < 65536);
         assert(offset < PEER_PACKET_SIZE - PEER_N_PACKET_MESSAGES);
 
+        out_packets->values[out_packets->size - 1].size = offset;
+
         uint8_t *const data =
             out_packets->values[out_packets->size - 1].data;
 
@@ -104,6 +106,8 @@ kit_status_t peer_pack(ptrdiff_t const           source_id,
     assert(offset < 65536);
     assert(offset < PEER_PACKET_SIZE - PEER_N_PACKET_MESSAGES);
 
+    out_packets->values[out_packets->size - 1].size = offset;
+
     uint8_t *const data =
         out_packets->values[out_packets->size - 1].data;
 
@@ -126,9 +130,21 @@ kit_status_t peer_unpack(peer_packets_ref_t const packets,
   kit_status_t status = KIT_OK;
 
   for (ptrdiff_t i = 0; i < packets.size; i++) {
+    if (packets.values[i].size == 0)
+      continue;
+
     ptrdiff_t offset = PEER_N_PACKET_MESSAGES;
 
-    while (offset + PEER_N_MESSAGE_DATA <= PEER_PACKET_SIZE) {
+    assert(packets.values[i].size >= offset &&
+           packets.values[i].size <= PEER_PACKET_SIZE);
+
+    if (packets.values[i].size < offset ||
+        packets.values[i].size > PEER_PACKET_SIZE) {
+      status |= PEER_ERROR_INVALID_PACKET_SIZE;
+      continue;
+    }
+
+    while (offset + PEER_N_MESSAGE_DATA <= packets.values[i].size) {
       ptrdiff_t const size = (ptrdiff_t) peer_read_message_size(
           packets.values[i].data + offset);
 
