@@ -34,9 +34,10 @@ typedef enum {
 } peer_slot_state_t;
 
 typedef struct {
-  peer_slot_state_t state;
-  peer_endpoint_t   local;
-  peer_endpoint_t   remote;
+  peer_slot_state_t state;     /*  Session state. */
+  peer_endpoint_t   local;     /*  Local endpoint. */
+  peer_endpoint_t   remote;    /*  Remote endpoint. */
+  ptrdiff_t         out_index; /*  Outgoing message queue index. */
 } peer_slot_t;
 
 typedef KIT_DA(peer_slot_t) peer_slots_t;
@@ -48,7 +49,7 @@ typedef KIT_DA(uint8_t) peer_buffer_t;
 typedef enum { PEER_HOST, PEER_CLIENT } peer_mode_t;
 
 typedef struct {
-  peer_mode_t   mode;
+  peer_mode_t   mode;   /*  Host or client. */
   peer_slots_t  slots;  /*  All sessions. */
   peer_queue_t  queue;  /*  Shared mutual message queue. */
   peer_buffer_t buffer; /*  Buffer for messages' data. */

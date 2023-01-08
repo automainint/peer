@@ -314,85 +314,132 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
   result.status = KIT_OK;
 
   if (peer->mode == PEER_HOST) {
-    ptrdiff_t const size = peer->queue.size;
-
-    DA(peer_message_t) messages;
-    DA(peer_message_ref_t) refs;
-
-    DA_INIT(messages, size, alloc);
-    DA_INIT(refs, size, alloc);
-
-    if (messages.size == size && refs.size == size) {
-      if (messages.size != 0)
-        memset(messages.values, 0, size * sizeof *messages.values);
-
-      for (ptrdiff_t i = 0; i < size; i++) {
-        ptrdiff_t const full_size = PEER_N_MESSAGE_DATA +
-                                    peer->queue.values[i].size;
-
-        DA_INIT(messages.values[i], full_size, alloc);
-        if (messages.values[i].size != full_size) {
-          result.status = PEER_ERROR_BAD_ALLOC;
-          break;
-        }
-
-        peer_write_message(
-            messages.values[i].values, PEER_MESSAGE_MODE_APPLICATION,
-            i, 0, 0, peer->queue.values[i].size,
-            peer->buffer.values + peer->queue.values[i].offset);
-      }
-
-      for (ptrdiff_t i = 0; i < size; i++) {
-        refs.values[i].size   = messages.values[i].size;
-        refs.values[i].values = messages.values[i].values;
-      }
-
-      peer_messages_ref_t mref = { .size   = refs.size,
-                                   .values = refs.values };
-
-      for (ptrdiff_t i = 1; i < peer->slots.size; i++) {
-        peer_slot_t const *const slot = peer->slots.values + i;
-
-        if (slot->state == PEER_SLOT_READY)
-          result.status |= peer_pack(slot->local.id, slot->remote.id,
-                                     mref, &result.packets);
-      }
-
-    } else
-      result.status = PEER_ERROR_BAD_ALLOC;
-
-    for (ptrdiff_t i = 0; i < messages.size; i++)
-      DA_DESTROY(messages.values[i]);
-
-    DA_DESTROY(messages);
-    DA_DESTROY(refs);
+    /*  Send messages to clients.
+     */
 
     for (ptrdiff_t i = 1; i < peer->slots.size; i++) {
       peer_slot_t *const slot = peer->slots.values + i;
 
-      if (slot->state == PEER_SLOT_SESSION_REQUEST) {
-        uint8_t message[PEER_N_MESSAGE_DATA + 1 + PEER_ADDRESS_SIZE];
-        uint8_t data[1 + PEER_ADDRESS_SIZE];
-        data[0] = PEER_M_SESSION_RESPONSE;
-        memcpy(data + 1, slot->local.address_data,
-               slot->local.address_size);
-        peer_write_message(message, PEER_MESSAGE_MODE_SERVICE,
-                           PEER_UNDEFINED, 0, 0,
-                           slot->local.address_size + 1, data);
+      switch (slot->state) {
+        case PEER_SLOT_SESSION_REQUEST: {
+          /*  Send the session response message.
+           */
 
-        peer_message_ref_t const ref = {
-          .size = PEER_N_MESSAGE_DATA + 1 + slot->local.address_size,
-          .values = message
-        };
+          uint8_t
+              message[PEER_N_MESSAGE_DATA + 1 + PEER_ADDRESS_SIZE];
+          uint8_t data[1 + PEER_ADDRESS_SIZE];
+          data[0] = PEER_M_SESSION_RESPONSE;
+          memcpy(data + 1, slot->local.address_data,
+                 slot->local.address_size);
+          peer_write_message(message, PEER_MESSAGE_MODE_SERVICE,
+                             PEER_UNDEFINED, 0, 0,
+                             slot->local.address_size + 1, data);
 
-        peer_messages_ref_t const mref = { .size   = 1,
-                                           .values = &ref };
+          peer_message_ref_t const ref = {
+            .size = PEER_N_MESSAGE_DATA + 1 +
+                    slot->local.address_size,
+            .values = message
+          };
 
-        result.status |= peer_pack(peer->slots.values[0].local.id,
-                                   slot->remote.id, mref,
-                                   &result.packets);
+          peer_messages_ref_t const mref = { .size   = 1,
+                                             .values = &ref };
 
-        slot->state = PEER_SLOT_READY;
+          result.status |= peer_pack(peer->slots.values[0].local.id,
+                                     slot->remote.id, mref,
+                                     &result.packets);
+
+          slot->state = PEER_SLOT_READY;
+        } break;
+
+        case PEER_SLOT_READY: {
+          /*  Send application level messages.
+           */
+
+          ptrdiff_t const index = slot->out_index;
+          ptrdiff_t const size  = peer->queue.size - index;
+
+          assert(size >= 0);
+
+          if (size < 0) {
+            result.status |= PEER_ERROR_INVALID_OUT_INDEX;
+            break;
+          }
+
+          if (size == 0)
+            break;
+
+          DA(peer_message_t) messages;
+          DA(peer_message_ref_t) refs;
+
+          DA_INIT(messages, size, alloc);
+          DA_INIT(refs, size, alloc);
+
+          assert(messages.size == size);
+          assert(refs.size == size);
+
+          if (messages.size != size || refs.size != size) {
+            result.status |= PEER_ERROR_BAD_ALLOC;
+            break;
+          }
+
+          if (messages.size != 0)
+            memset(messages.values, 0,
+                   size * sizeof *messages.values);
+
+          /*  Prepare messages' data.
+           */
+
+          for (ptrdiff_t i = 0; i < size; i++) {
+            assert(index + i >= 0 && index + i < peer->queue.size);
+
+            peer_message_entry_t const *const entry =
+                peer->queue.values + (index + i);
+
+            ptrdiff_t const full_size = PEER_N_MESSAGE_DATA +
+                                        entry->size;
+
+            DA_INIT(messages.values[i], full_size, alloc);
+            if (messages.values[i].size != full_size) {
+              result.status |= PEER_ERROR_BAD_ALLOC;
+              break;
+            }
+
+            assert(entry->offset >= 0 &&
+                   entry->offset + entry->size <= peer->buffer.size);
+
+            peer_write_message(messages.values[i].values,
+                               PEER_MESSAGE_MODE_APPLICATION,
+                               index + i, entry->time, entry->actor,
+                               entry->size,
+                               peer->buffer.values + entry->offset);
+          }
+
+          /*  Pack messages into packets.
+           */
+
+          for (ptrdiff_t i = 0; i < size; i++) {
+            refs.values[i].size   = messages.values[i].size;
+            refs.values[i].values = messages.values[i].values;
+          }
+
+          peer_messages_ref_t mref = { .size   = refs.size,
+                                       .values = refs.values };
+
+          result.status |= peer_pack(slot->local.id, slot->remote.id,
+                                     mref, &result.packets);
+
+          for (ptrdiff_t i = 0; i < messages.size; i++)
+            DA_DESTROY(messages.values[i]);
+
+          DA_DESTROY(messages);
+          DA_DESTROY(refs);
+
+          /*  Update outgoing queue index.
+           */
+          slot->out_index += size;
+        } break;
+
+        default:;
       }
     }
   }

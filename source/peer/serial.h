@@ -121,10 +121,14 @@ static peer_time_t peer_read_message_time(
   return (peer_time_t) peer_read_u64(message + PEER_N_MESSAGE_TIME);
 }
 
-static uint32_t peer_read_message_actor(
+static ptrdiff_t peer_read_message_actor(
     uint8_t const *const message) {
   assert(message != NULL);
-  return peer_read_u32(message + PEER_N_MESSAGE_ACTOR);
+  uint32_t const actor = peer_read_u32(message +
+                                       PEER_N_MESSAGE_ACTOR);
+  if (actor == -1)
+    return PEER_UNDEFINED;
+  return (ptrdiff_t) actor;
 }
 
 static void peer_write_message_size(uint8_t *const message,
@@ -151,12 +155,15 @@ static void peer_write_message(uint8_t *const       destination,
                                uint8_t const        mode,
                                ptrdiff_t const      index,
                                peer_time_t const    time,
-                               uint32_t const       actor,
+                               ptrdiff_t const      actor,
                                ptrdiff_t const      data_size,
                                uint8_t const *const data) {
   assert(destination != NULL);
   assert(data_size >= 0 && data_size <= PEER_MAX_MESSAGE_SIZE);
   assert(data_size == 0 || data != NULL);
+
+  assert(actor >= 0 || actor == PEER_UNDEFINED);
+  assert((int64_t) actor <= 0xffffffffll);
 
   /*  FIXME
    *  Calculate the checksum.
@@ -169,7 +176,10 @@ static void peer_write_message(uint8_t *const       destination,
   peer_write_message_mode(destination, mode);
   peer_write_u64(destination + PEER_N_MESSAGE_INDEX, index);
   peer_write_u64(destination + PEER_N_MESSAGE_TIME, time);
-  peer_write_u32(destination + PEER_N_MESSAGE_ACTOR, actor);
+
+  peer_write_u32(destination + PEER_N_MESSAGE_ACTOR,
+                 actor == PEER_UNDEFINED ? (uint32_t) -1
+                                         : (uint32_t) actor);
 
   if (data_size > 0)
     memcpy(destination + PEER_N_MESSAGE_DATA, data, data_size);
