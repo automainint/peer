@@ -11,6 +11,7 @@ extern "C" {
 #endif
 
 typedef struct {
+  int         is_ready;
   peer_time_t time;
   ptrdiff_t   actor;
   ptrdiff_t   size;

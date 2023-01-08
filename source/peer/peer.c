@@ -206,7 +206,26 @@ kit_status_t peer_input(peer_t *const            peer,
           }
         }
 
-        if (index != PEER_UNDEFINED) {
+        if (index == PEER_UNDEFINED)
+          continue;
+
+        assert(index >= 0);
+
+        if (index < 0) {
+          status |= PEER_ERROR_INVALID_MESSAGE_INDEX;
+          continue;
+        }
+
+        if (index < peer->queue.size &&
+            peer->queue.values[index].is_ready) {
+          /*  FIXME
+           *  Check if message is the same.
+           */
+
+        } else {
+          /*  Add message to the queue.
+           */
+
           ptrdiff_t const offset = peer->buffer.size;
 
           DA_RESIZE(peer->buffer, offset + data_size);
@@ -232,10 +251,11 @@ kit_status_t peer_input(peer_t *const            peer,
                    (index + 1 - n) * sizeof *peer->queue.values);
           }
 
-          peer->queue.values[index].time   = time;
-          peer->queue.values[index].actor  = actor;
-          peer->queue.values[index].size   = data_size;
-          peer->queue.values[index].offset = offset;
+          peer->queue.values[index].is_ready = 1;
+          peer->queue.values[index].time     = time;
+          peer->queue.values[index].actor    = actor;
+          peer->queue.values[index].size     = data_size;
+          peer->queue.values[index].offset   = offset;
         }
       }
 
@@ -303,7 +323,8 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
     DA_INIT(refs, size, alloc);
 
     if (messages.size == size && refs.size == size) {
-      memset(messages.values, 0, size * sizeof *messages.values);
+      if (messages.size != 0)
+        memset(messages.values, 0, size * sizeof *messages.values);
 
       for (ptrdiff_t i = 0; i < size; i++) {
         ptrdiff_t const full_size = PEER_N_MESSAGE_DATA +
