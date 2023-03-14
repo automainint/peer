@@ -11,11 +11,10 @@ extern "C" {
 #endif
 
 typedef struct {
-  int         is_ready;
-  peer_time_t time;
-  ptrdiff_t   actor;
-  ptrdiff_t   size;
-  ptrdiff_t   offset;
+  int            is_ready;
+  peer_time_t    time;
+  ptrdiff_t      actor;
+  peer_message_t data;
 } peer_message_entry_t;
 
 typedef struct {
@@ -33,26 +32,29 @@ typedef enum {
   PEER_SLOT_READY
 } peer_slot_state_t;
 
+typedef KIT_DA(peer_message_entry_t) peer_queue_t;
+
 typedef struct {
-  peer_slot_state_t state;     /*  Session state. */
-  peer_endpoint_t   local;     /*  Local endpoint. */
-  peer_endpoint_t   remote;    /*  Remote endpoint. */
-  ptrdiff_t         out_index; /*  Outgoing message queue index. */
+  peer_slot_state_t state;  /*  Session state. */
+  peer_endpoint_t   local;  /*  Local endpoint. */
+  peer_endpoint_t   remote; /*  Remote endpoint. */
+  peer_queue_t queue;  /*  Message queue. Incoming messages for host
+                           mode, outgoing messages for client mode. */
+  ptrdiff_t actor;     /*  Client actor id. */
+  ptrdiff_t out_index; /*  Outgoing message queue index. */
 } peer_slot_t;
 
 typedef KIT_DA(peer_slot_t) peer_slots_t;
 typedef KIT_AR(ptrdiff_t) peer_ids_ref_t;
 
-typedef KIT_DA(peer_message_entry_t) peer_queue_t;
-typedef KIT_DA(uint8_t) peer_buffer_t;
-
 typedef enum { PEER_HOST, PEER_CLIENT } peer_mode_t;
 
 typedef struct {
-  peer_mode_t   mode;   /*  Host or client. */
-  peer_slots_t  slots;  /*  All sessions. */
-  peer_queue_t  queue;  /*  Shared mutual message queue. */
-  peer_buffer_t buffer; /*  Buffer for messages' data. */
+  kit_allocator_t alloc;
+  peer_mode_t     mode;  /*  Host or client. */
+  ptrdiff_t       actor; /*  Peer actor id. */
+  peer_slots_t    slots; /*  All sessions. */
+  peer_queue_t    queue; /*  Shared mutual message queue. */
 } peer_t;
 
 kit_status_t peer_init(peer_t *host, peer_mode_t mode,
