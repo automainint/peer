@@ -8,8 +8,6 @@
 #include <stdio.h>
 
 /*  TODO
- *  - Client to client state update.
- *  - Actors.
  *  - Heartbeat packets.
  *  - Ping.
  *  - Connection timeout.
@@ -19,6 +17,7 @@
  *  - Session token.
  *  - Session version.
  *  - Reconnect.
+ *  - Messages duplication.
  *  - Encryption.
  *  - Predefined public keys.
  */

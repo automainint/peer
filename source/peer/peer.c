@@ -4,8 +4,6 @@
 #include <assert.h>
 #include <string.h>
 
-#include <stdio.h>
-
 static_assert(((ptrdiff_t) -1) == PEER_UNDEFINED,
               "Undefined id sanity check");
 static_assert(PEER_N_PACKET_MESSAGES + PEER_N_MESSAGE_DATA <
@@ -25,6 +23,8 @@ kit_status_t peer_init(peer_t *const peer, peer_mode_t const mode,
 
   if (peer == NULL)
     return PEER_ERROR_INVALID_PEER;
+  if (mode != PEER_HOST && mode != PEER_CLIENT)
+    return PEER_ERROR_INVALID_MODE;
 
   memset(peer, 0, sizeof *peer);
   peer->alloc = alloc;
@@ -34,8 +34,13 @@ kit_status_t peer_init(peer_t *const peer, peer_mode_t const mode,
   DA_INIT(peer->queue, 0, alloc);
 
   if (mode == PEER_HOST) {
+    /*  Actor id is a host's slot index corresponding to the peer.
+     *  First slot is always reserved for host itself.
+     */
     peer->actor = 0;
   } else {
+    /*  Client doesn't have an actor id at startup.
+     */
     peer->actor = PEER_UNDEFINED;
   }
 
@@ -131,23 +136,26 @@ kit_status_t peer_queue(peer_t *const            peer,
 
   if (peer == NULL)
     return PEER_ERROR_INVALID_PEER;
-  if (message.size == 0)
-    return KIT_OK;
-  if (message.values == NULL)
+  if (message.size == 0 && message.values == NULL)
     return PEER_ERROR_INVALID_MESSAGE;
 
   peer_time_t const time  = 0;
   ptrdiff_t const   actor = peer->actor;
 
-  if (peer->mode == PEER_HOST)
-    return queue_append(&peer->queue, time, actor, message,
-                        peer->alloc);
+  switch (peer->mode) {
+    case PEER_HOST:
+      return queue_append(&peer->queue, time, actor, message,
+                          peer->alloc);
 
-  if (peer->mode == PEER_CLIENT && peer->slots.size > 0)
-    return queue_append(&peer->slots.values[0].queue, time, actor,
-                        message, peer->alloc);
+    case PEER_CLIENT:
+      if (peer->slots.size > 0)
+        return queue_append(&peer->slots.values[0].queue, time, actor,
+                            message, peer->alloc);
 
-  return PEER_ERROR_INVALID_PEER;
+    default:;
+  }
+
+  return PEER_ERROR_INVALID_MODE;
 }
 
 kit_status_t peer_connect(peer_t *const   client,
@@ -177,13 +185,6 @@ kit_status_t peer_input(peer_t *const            peer,
 
   if (peer == NULL)
     return PEER_ERROR_INVALID_PEER;
-
-  if (peer->mode == PEER_HOST)
-    printf("[host]    Input: %d packets.%20s\n", (int) packets.size,
-           "");
-  else
-    printf("[client]  Input: %d packets.%20s\n", (int) packets.size,
-           "");
 
   kit_status_t status = KIT_OK;
 
@@ -229,7 +230,6 @@ kit_status_t peer_input(peer_t *const            peer,
 
           if (service_id == PEER_M_SESSION_RESPONSE) {
             assert(data_size - 1 <= PEER_ADDRESS_SIZE);
-            printf("[client]  Set actor %d.%20s\n", (int) actor, "");
             peer->actor               = actor;
             slot->remote.address_size = data_size - 1;
             memcpy(slot->remote.address_data,
@@ -278,11 +278,6 @@ kit_status_t peer_input(peer_t *const            peer,
             break;
           }
 
-          if (peer->mode == PEER_HOST)
-            printf("[host]    Message %d.%20s\n", (int) index, "");
-          else
-            printf("[client]  Message %d.%20s\n", (int) index, "");
-
           peer->queue.values[index].is_ready = 1;
           peer->queue.values[index].time     = time;
           peer->queue.values[index].actor    = actor;
@@ -314,7 +309,6 @@ kit_status_t peer_input(peer_t *const            peer,
 
       if (slot->remote.id == PEER_UNDEFINED &&
           slot->local.address_size > 0) {
-        printf("[host]    Assign slot for %d.%20s\n", (int) j, "");
         slot->state     = PEER_SLOT_SESSION_REQUEST;
         slot->remote.id = packet->source_id;
         slot->actor     = j;
@@ -433,8 +427,6 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
         case PEER_SLOT_SESSION_REQUEST: {
           /*  Send the session response message.
            */
-          printf("[host]    Send session response (actor %d).%20s\n",
-                 (int) slot->actor, "");
 
           uint8_t
               message[PEER_N_MESSAGE_DATA + 1 + PEER_ADDRESS_SIZE];
@@ -467,10 +459,6 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
         } break;
 
         case PEER_SLOT_READY: {
-          if (slot->out_index < peer->queue.size)
-            printf("[host]    Send %d messages.%20s\n",
-                   (int) (peer->queue.size - slot->out_index), "");
-
           kit_status_t const s = queue_pack(
               &peer->queue, slot->out_index, slot->local.id,
               slot->remote.id, &result.packets, peer->alloc);
@@ -490,9 +478,6 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
     peer_slot_t *const slot = peer->slots.values;
 
     if (slot->out_index < slot->queue.size) {
-      printf("[client]  Send %d messages.%20s\n",
-             (int) (slot->queue.size - slot->out_index), "");
-
       kit_status_t const s = queue_pack(
           &slot->queue, slot->out_index, slot->local.id,
           slot->remote.id, &result.packets, peer->alloc);
@@ -503,9 +488,6 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
       result.status |= s;
     } else {
       peer_messages_ref_t mref = { .size = 0, .values = NULL };
-
-      if (mref.size == 0)
-        printf("[client]  Send dummy packet.%20s\n", "");
 
       result.status |= peer_pack(slot->local.id, slot->remote.id,
                                  mref, &result.packets);
