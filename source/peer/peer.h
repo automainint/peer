@@ -38,9 +38,13 @@ typedef struct {
   peer_slot_state_t state;  /*  Session state. */
   peer_endpoint_t   local;  /*  Local endpoint. */
   peer_endpoint_t   remote; /*  Remote endpoint. */
-  peer_queue_t queue;  /*  Message queue. Incoming messages for host
-                           mode, outgoing messages for client mode. */
+
+  peer_queue_t queue; /*  Message queue. Incoming messages in
+                          host mode, outgoing messages in
+                          client mode. */
+
   ptrdiff_t actor;     /*  Client actor id. */
+  ptrdiff_t in_index;  /*  Incoming message queue index. */
   ptrdiff_t out_index; /*  Outgoing message queue index. */
 } peer_slot_t;
 

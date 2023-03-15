@@ -104,7 +104,7 @@ kit_status_t peer_destroy(peer_t *const peer) {
 
 static kit_status_t queue_append(peer_queue_t *const q,
                                  peer_time_t time, ptrdiff_t actor,
-                                 peer_message_ref_t const message,
+                                 peer_message_ref_t const data,
                                  kit_allocator_t          alloc) {
   ptrdiff_t index = q->size;
   DA_RESIZE(*q, index + 1);
@@ -113,18 +113,67 @@ static kit_status_t queue_append(peer_queue_t *const q,
 
   memset(q->values + index, 0, sizeof *q->values);
 
-  q->values[index].time  = time;
-  q->values[index].actor = actor;
+  q->values[index].is_ready = 1;
+  q->values[index].time     = time;
+  q->values[index].actor    = actor;
 
-  DA_INIT(q->values[index].data, message.size, alloc);
-  if (q->values[index].data.size != message.size) {
+  DA_INIT(q->values[index].data, data.size, alloc);
+  if (q->values[index].data.size != data.size) {
     DA_RESIZE(*q, index);
     return PEER_ERROR_BAD_ALLOC;
   }
 
-  if (message.size > 0)
-    memcpy(q->values[index].data.values, message.values,
-           message.size);
+  if (data.size > 0)
+    memcpy(q->values[index].data.values, data.values, data.size);
+
+  return KIT_OK;
+}
+
+static kit_status_t queue_insert(peer_queue_t *const q,
+                                 ptrdiff_t const     index,
+                                 peer_time_t time, ptrdiff_t actor,
+                                 peer_message_ref_t const data,
+                                 kit_allocator_t          alloc) {
+  if (index == PEER_UNDEFINED)
+    /*  Don't save unindexed messages.
+     */
+    return KIT_OK;
+
+  assert(index >= 0);
+
+  if (index < 0)
+    return PEER_ERROR_INVALID_MESSAGE_INDEX;
+
+  if (index < q->size && q->values[index].is_ready) {
+    /*  FIXME
+     *  Check if message is the same.
+     */
+
+  } else {
+    /*  Add message to the mutual queue.
+     */
+
+    ptrdiff_t const n = q->size;
+
+    if (index >= n) {
+      DA_RESIZE(*q, index + 1);
+      if (q->size != index + 1)
+        return PEER_ERROR_BAD_ALLOC;
+
+      memset(q->values + n, 0, (index + 1 - n) * sizeof *q->values);
+    }
+
+    DA_INIT(q->values[index].data, data.size, alloc);
+    if (q->values[index].data.size != data.size)
+      return PEER_ERROR_BAD_ALLOC;
+
+    q->values[index].is_ready = 1;
+    q->values[index].time     = time;
+    q->values[index].actor    = actor;
+
+    if (data.size > 0)
+      memcpy(q->values[index].data.values, data.values, data.size);
+  }
 
   return KIT_OK;
 }
@@ -211,11 +260,16 @@ kit_status_t peer_input(peer_t *const            peer,
         peer_message_t *const message = messages.values + k;
 
         /*  FIXME
+         *  Save messages to slot queue on host.
+         *  Synchronize mutual queue on host.
+         *  Save messages to mutual queue on client.
          *  Check the checksum.
          */
+
         ptrdiff_t const data_size = peer_read_message_data_size(
             message->values);
-        uint8_t const mode = peer_read_message_mode(message->values);
+        uint8_t const message_mode = peer_read_message_mode(
+            message->values);
         ptrdiff_t const index = peer_read_message_index(
             message->values);
         peer_time_t const time = peer_read_message_time(
@@ -223,68 +277,81 @@ kit_status_t peer_input(peer_t *const            peer,
         uint32_t const actor = peer_read_message_actor(
             message->values);
 
-        if (mode == PEER_MESSAGE_MODE_SERVICE &&
-            peer->mode == PEER_CLIENT && data_size >= 1) {
-          uint8_t const service_id = peer_read_u8(
-              message->values + PEER_N_MESSAGE_DATA);
+        if (peer->mode == PEER_HOST) {
+          /*  Check the actor id value.
+           */
 
-          if (service_id == PEER_M_SESSION_RESPONSE) {
-            assert(data_size - 1 <= PEER_ADDRESS_SIZE);
-            peer->actor               = actor;
-            slot->remote.address_size = data_size - 1;
-            memcpy(slot->remote.address_data,
-                   message->values + PEER_N_MESSAGE_DATA + 1,
-                   data_size - 1);
+          assert(actor == slot->actor);
+
+          if (actor != slot->actor) {
+            status |= PEER_ERROR_INVALID_ACTOR;
+            continue;
           }
-        }
 
-        if (index == PEER_UNDEFINED)
-          continue;
-
-        assert(index >= 0);
-
-        if (index < 0) {
-          status |= PEER_ERROR_INVALID_MESSAGE_INDEX;
-          continue;
-        }
-
-        if (index < peer->queue.size &&
-            peer->queue.values[index].is_ready) {
-          /*  FIXME
-           *  Check if message is the same.
+          /*  TODO
+           *  Process service-level messages.
            */
 
-        } else {
-          /*  Add message to the queue.
+          int processed = 0;
+
+          assert(message_mode != PEER_MESSAGE_MODE_SERVICE ||
+                 processed == 1);
+
+          if (message_mode == PEER_MESSAGE_MODE_SERVICE && !processed)
+            status |= PEER_ERROR_UNKNOWN_SERVICE_ID;
+
+          peer_message_ref_t const data = {
+            .size   = data_size,
+            .values = message->values + PEER_N_MESSAGE_DATA
+          };
+
+          status |= queue_insert(&slot->queue, index, time, actor,
+                                 data, peer->alloc);
+        }
+
+        if (peer->mode == PEER_CLIENT) {
+          /*  Process service-level messages.
            */
 
-          ptrdiff_t const n = peer->queue.size;
+          int processed = 0;
 
-          if (index >= n) {
-            DA_RESIZE(peer->queue, index + 1);
-            if (peer->queue.size != index + 1) {
-              status |= PEER_ERROR_BAD_ALLOC;
-              break;
+          if (message_mode == PEER_MESSAGE_MODE_SERVICE &&
+              data_size >= 1) {
+            uint8_t const service_id = peer_read_u8(
+                message->values + PEER_N_MESSAGE_DATA);
+
+            if (service_id == PEER_M_SESSION_RESPONSE) {
+              /*  Update client's actor id and host remote address.
+               */
+              assert(data_size - 1 <= PEER_ADDRESS_SIZE);
+              peer->actor               = actor;
+              slot->remote.address_size = data_size - 1;
+              memcpy(slot->remote.address_data,
+                     message->values + PEER_N_MESSAGE_DATA + 1,
+                     data_size - 1);
+
+              /*  Update actor id for old messages.
+               */
+              for (ptrdiff_t k = 0; k < slot->queue.size; k++)
+                slot->queue.values[k].actor = actor;
             }
 
-            memset(peer->queue.values + n, 0,
-                   (index + 1 - n) * sizeof *peer->queue.values);
+            processed = 1;
           }
 
-          DA_INIT(peer->queue.values[index].data, data_size,
-                  peer->alloc);
-          if (peer->queue.values[index].data.size != data_size) {
-            status |= PEER_ERROR_BAD_ALLOC;
-            break;
-          }
+          assert(message_mode != PEER_MESSAGE_MODE_SERVICE ||
+                 processed == 1);
 
-          peer->queue.values[index].is_ready = 1;
-          peer->queue.values[index].time     = time;
-          peer->queue.values[index].actor    = actor;
+          if (message_mode == PEER_MESSAGE_MODE_SERVICE && !processed)
+            status |= PEER_ERROR_UNKNOWN_SERVICE_ID;
 
-          if (data_size > 0)
-            memcpy(peer->queue.values[index].data.values,
-                   message->values + PEER_N_MESSAGE_DATA, data_size);
+          peer_message_ref_t const data = {
+            .size   = data_size,
+            .values = message->values + PEER_N_MESSAGE_DATA
+          };
+
+          status |= queue_insert(&peer->queue, index, time, actor,
+                                 data, peer->alloc);
         }
       }
 
@@ -313,6 +380,37 @@ kit_status_t peer_input(peer_t *const            peer,
         slot->remote.id = packet->source_id;
         slot->actor     = j;
         break;
+      }
+    }
+  }
+
+  if (peer->mode == PEER_HOST) {
+    /*  Synchronize mutual message queue.
+     */
+
+    peer_time_t const time = 0;
+
+    for (ptrdiff_t i = 1; i < peer->slots.size; i++) {
+      peer_slot_t *const slot = peer->slots.values + i;
+
+      for (; slot->in_index < slot->queue.size; slot->in_index++) {
+        peer_message_entry_t const *const message =
+            slot->queue.values + slot->in_index;
+
+        if (message->is_ready == 0)
+          break;
+
+        assert(slot->actor == message->actor);
+
+        peer_message_ref_t const data = {
+          .size = message->data.size, .values = message->data.values
+        };
+
+        kit_status_t const s = queue_append(
+            &peer->queue, time, slot->actor, data, peer->alloc);
+
+        assert(s == KIT_OK);
+        status |= s;
       }
     }
   }
