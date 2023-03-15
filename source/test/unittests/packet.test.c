@@ -7,7 +7,7 @@
 TEST("packet pack should always return at least one packet") {
   kit_allocator_t alloc = kit_alloc_default();
 
-  peer_messages_ref_t const mref = { .size = 0, .values = NULL };
+  peer_chunks_ref_t const mref = { .size = 0, .values = NULL };
 
   peer_packets_t packets;
   DA_INIT(packets, 0, alloc);
@@ -18,29 +18,29 @@ TEST("packet pack should always return at least one packet") {
   DA_DESTROY(packets);
 }
 
-TEST("packet pack and unpack several messages") {
+TEST("packet pack and unpack several chunks") {
   kit_allocator_t alloc = kit_alloc_default();
 
-  uint8_t messages[] = {
-    1, 2,  3, 4,  5, 6, 7, 8,  9, 10, 1, 2,  3,  4,  5,  6,
-    7, 8,  9, 10, 1, 2, 3, 4,  5, 6,  7, 8,  9,  10, 1,  2,
-    3, 4,  5, 6,  7, 8, 9, 10, 1, 2,  3, 4,  5,  6,  7,  8,
-    9, 10, 1, 2,  3, 4, 5, 6,  7, 8,  9, 10, 11, 12, 1,  2,
-    3, 4,  5, 6,  7, 8, 9, 10, 1, 2,  3, 4,  5,  6,  7,  8,
-    9, 10, 1, 2,  3, 4, 5, 6,  7, 8,  9, 10, 11, 12, 13, 14
+  uint8_t chunks[] = { 1,  2,  3, 4,  5, 6,  7, 8,  9,  10, 1,  2,
+                       3,  4,  5, 6,  7, 8,  9, 10, 1,  2,  3,  4,
+                       5,  6,  7, 8,  9, 10, 1, 2,  3,  4,  5,  6,
+                       7,  8,  9, 10, 1, 2,  3, 4,  5,  6,  7,  8,
+                       9,  10, 1, 2,  3, 4,  5, 6,  7,  8,  9,  10,
+                       11, 12, 1, 2,  3, 4,  5, 6,  7,  8,  9,  10,
+                       1,  2,  3, 4,  5, 6,  7, 8,  9,  10, 1,  2,
+                       3,  4,  5, 6,  7, 8,  9, 10, 11, 12, 13, 14 };
+
+  peer_write_message_size(chunks, 30);
+  peer_write_message_size(chunks + 30, 32);
+  peer_write_message_size(chunks + 62, 34);
+
+  peer_chunk_ref_t const mrefs[] = {
+    { .size = 30, .values = chunks },
+    { .size = 32, .values = chunks + 30 },
+    { .size = 34, .values = chunks + 62 }
   };
 
-  peer_write_message_size(messages, 30);
-  peer_write_message_size(messages + 30, 32);
-  peer_write_message_size(messages + 62, 34);
-
-  peer_message_ref_t const mrefs[] = {
-    { .size = 30, .values = messages },
-    { .size = 32, .values = messages + 30 },
-    { .size = 34, .values = messages + 62 }
-  };
-
-  peer_messages_ref_t const mref = { .size = 3, .values = mrefs };
+  peer_chunks_ref_t const mref = { .size = 3, .values = mrefs };
 
   peer_packets_t packets;
   DA_INIT(packets, 0, alloc);
@@ -50,7 +50,7 @@ TEST("packet pack and unpack several messages") {
   peer_packets_ref_t const pref = { .size   = packets.size,
                                     .values = packets.values };
 
-  peer_messages_t foo;
+  peer_chunks_t foo;
   DA_INIT(foo, 0, alloc);
 
   REQUIRE(peer_unpack(pref, &foo) == KIT_OK);
@@ -65,30 +65,30 @@ TEST("packet pack and unpack several messages") {
   DA_DESTROY(foo);
 }
 
-TEST("packet pack and unpack a lot of messages") {
+TEST("packet pack and unpack a lot of chunks") {
   kit_allocator_t alloc = kit_alloc_default();
 
-  uint8_t messages[2000];
+  uint8_t chunks[2000];
 
-  for (ptrdiff_t i = 0; i < sizeof messages; i++) messages[i] = i;
+  for (ptrdiff_t i = 0; i < sizeof chunks; i++) chunks[i] = i;
 
   for (ptrdiff_t i = 0; i < 10; i++)
-    peer_write_message_size(messages + i * 200, 200);
+    peer_write_message_size(chunks + i * 200, 200);
 
-  peer_message_ref_t const mrefs[] = {
-    { .size = 200, .values = messages },
-    { .size = 200, .values = messages + 200 },
-    { .size = 200, .values = messages + 400 },
-    { .size = 200, .values = messages + 600 },
-    { .size = 200, .values = messages + 800 },
-    { .size = 200, .values = messages + 1000 },
-    { .size = 200, .values = messages + 1200 },
-    { .size = 200, .values = messages + 1400 },
-    { .size = 200, .values = messages + 1600 },
-    { .size = 200, .values = messages + 1800 }
+  peer_chunk_ref_t const mrefs[] = {
+    { .size = 200, .values = chunks },
+    { .size = 200, .values = chunks + 200 },
+    { .size = 200, .values = chunks + 400 },
+    { .size = 200, .values = chunks + 600 },
+    { .size = 200, .values = chunks + 800 },
+    { .size = 200, .values = chunks + 1000 },
+    { .size = 200, .values = chunks + 1200 },
+    { .size = 200, .values = chunks + 1400 },
+    { .size = 200, .values = chunks + 1600 },
+    { .size = 200, .values = chunks + 1800 }
   };
 
-  peer_messages_ref_t const mref = { .size = 10, .values = mrefs };
+  peer_chunks_ref_t const mref = { .size = 10, .values = mrefs };
 
   peer_packets_t packets;
   DA_INIT(packets, 0, alloc);
@@ -98,7 +98,7 @@ TEST("packet pack and unpack a lot of messages") {
   peer_packets_ref_t const pref = { .size   = packets.size,
                                     .values = packets.values };
 
-  peer_messages_t foo;
+  peer_chunks_t foo;
   DA_INIT(foo, 0, alloc);
 
   REQUIRE(peer_unpack(pref, &foo) == KIT_OK);

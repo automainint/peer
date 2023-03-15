@@ -112,12 +112,11 @@ TEST("peer host to client initial state update") {
 
   /*  Put data to the host.
    */
-  uint8_t            data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-  peer_message_ref_t data_ref[3] = {
-    { .size = 2, .values = data },
-    { .size = 4, .values = data + 2 },
-    { .size = 3, .values = data + 6 }
-  };
+  uint8_t          data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+  peer_chunk_ref_t data_ref[3] = { { .size = 2, .values = data },
+                                   { .size = 4, .values = data + 2 },
+                                   { .size   = 3,
+                                     .values = data + 6 } };
 
   REQUIRE(peer_queue(&host, data_ref[0]) == KIT_OK);
   REQUIRE(peer_queue(&host, data_ref[1]) == KIT_OK);
@@ -328,12 +327,11 @@ TEST("peer host to client state update once") {
 
   /*  Put data to the host.
    */
-  uint8_t            data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-  peer_message_ref_t data_ref[3] = {
-    { .size = 2, .values = data },
-    { .size = 4, .values = data + 2 },
-    { .size = 3, .values = data + 6 }
-  };
+  uint8_t          data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+  peer_chunk_ref_t data_ref[3] = { { .size = 2, .values = data },
+                                   { .size = 4, .values = data + 2 },
+                                   { .size   = 3,
+                                     .values = data + 6 } };
 
   REQUIRE(peer_queue(&host, data_ref[0]) == KIT_OK);
   REQUIRE(peer_queue(&host, data_ref[1]) == KIT_OK);
@@ -492,12 +490,11 @@ TEST("peer host to client state update twice") {
 
   /*  Put data to the host.
    */
-  uint8_t            data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-  peer_message_ref_t data_ref[3] = {
-    { .size = 2, .values = data },
-    { .size = 4, .values = data + 2 },
-    { .size = 3, .values = data + 6 }
-  };
+  uint8_t          data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+  peer_chunk_ref_t data_ref[3] = { { .size = 2, .values = data },
+                                   { .size = 4, .values = data + 2 },
+                                   { .size   = 3,
+                                     .values = data + 6 } };
 
   REQUIRE(peer_queue(&host, data_ref[0]) == KIT_OK);
 
@@ -661,8 +658,8 @@ TEST("peer client to client state update") {
 
   /*  Put data to Alice.
    */
-  uint8_t            data[]   = { 1, 2, 3, 4, 5 };
-  peer_message_ref_t data_ref = { .size = 5, .values = data };
+  uint8_t          data[]   = { 1, 2, 3, 4, 5 };
+  peer_chunk_ref_t data_ref = { .size = 5, .values = data };
   REQUIRE(peer_queue(&alice, data_ref) == KIT_OK);
 
   /*  Alice will send data to the host.
@@ -780,9 +777,9 @@ TEST("peer two clients state update") {
 
   /*  Put data to Alice and Bob.
    */
-  uint8_t            data[]     = { 1, 2, 3, 4, 5 };
-  peer_message_ref_t data_ref_0 = { .size = 3, .values = data };
-  peer_message_ref_t data_ref_1 = { .size = 2, .values = data + 3 };
+  uint8_t          data[]     = { 1, 2, 3, 4, 5 };
+  peer_chunk_ref_t data_ref_0 = { .size = 3, .values = data };
+  peer_chunk_ref_t data_ref_1 = { .size = 2, .values = data + 3 };
   REQUIRE(peer_queue(&alice, data_ref_0) == KIT_OK);
   REQUIRE(peer_queue(&bob, data_ref_1) == KIT_OK);
 

@@ -104,8 +104,8 @@ kit_status_t peer_destroy(peer_t *const peer) {
 
 static kit_status_t queue_append(peer_queue_t *const q,
                                  peer_time_t time, ptrdiff_t actor,
-                                 peer_message_ref_t const data,
-                                 kit_allocator_t          alloc) {
+                                 peer_chunk_ref_t const data,
+                                 kit_allocator_t        alloc) {
   ptrdiff_t index = q->size;
   DA_RESIZE(*q, index + 1);
   if (q->size != index + 1)
@@ -132,8 +132,8 @@ static kit_status_t queue_append(peer_queue_t *const q,
 static kit_status_t queue_insert(peer_queue_t *const q,
                                  ptrdiff_t const     index,
                                  peer_time_t time, ptrdiff_t actor,
-                                 peer_message_ref_t const data,
-                                 kit_allocator_t          alloc) {
+                                 peer_chunk_ref_t const data,
+                                 kit_allocator_t        alloc) {
   if (index == PEER_UNDEFINED)
     /*  Don't save unindexed messages.
      */
@@ -178,14 +178,14 @@ static kit_status_t queue_insert(peer_queue_t *const q,
   return KIT_OK;
 }
 
-kit_status_t peer_queue(peer_t *const            peer,
-                        peer_message_ref_t const message) {
+kit_status_t peer_queue(peer_t *const          peer,
+                        peer_chunk_ref_t const message_data) {
   assert(peer != NULL);
-  assert(message.size == 0 || message.values != NULL);
+  assert(message_data.size == 0 || message_data.values != NULL);
 
   if (peer == NULL)
     return PEER_ERROR_INVALID_PEER;
-  if (message.size == 0 && message.values == NULL)
+  if (message_data.size == 0 && message_data.values == NULL)
     return PEER_ERROR_INVALID_MESSAGE;
 
   peer_time_t const time  = 0;
@@ -193,13 +193,13 @@ kit_status_t peer_queue(peer_t *const            peer,
 
   switch (peer->mode) {
     case PEER_HOST:
-      return queue_append(&peer->queue, time, actor, message,
+      return queue_append(&peer->queue, time, actor, message_data,
                           peer->alloc);
 
     case PEER_CLIENT:
       if (peer->slots.size > 0)
         return queue_append(&peer->slots.values[0].queue, time, actor,
-                            message, peer->alloc);
+                            message_data, peer->alloc);
 
     default:;
   }
@@ -249,15 +249,15 @@ kit_status_t peer_input(peer_t *const            peer,
           slot->remote.id != packet->source_id)
         continue;
 
-      peer_messages_t messages;
-      DA_INIT(messages, 0, peer->alloc);
+      peer_chunks_t chunks;
+      DA_INIT(chunks, 0, peer->alloc);
 
       peer_packets_ref_t const ref = { .size = 1, .values = packet };
 
-      status |= peer_unpack(ref, &messages);
+      status |= peer_unpack(ref, &chunks);
 
-      for (ptrdiff_t k = 0; k < messages.size; k++) {
-        peer_message_t *const message = messages.values + k;
+      for (ptrdiff_t k = 0; k < chunks.size; k++) {
+        peer_chunk_t *const chunk = chunks.values + k;
 
         /*  FIXME
          *  Save messages to slot queue on host.
@@ -267,15 +267,14 @@ kit_status_t peer_input(peer_t *const            peer,
          */
 
         ptrdiff_t const data_size = peer_read_message_data_size(
-            message->values);
+            chunk->values);
         uint8_t const message_mode = peer_read_message_mode(
-            message->values);
+            chunk->values);
         ptrdiff_t const index = peer_read_message_index(
-            message->values);
+            chunk->values);
         peer_time_t const time = peer_read_message_time(
-            message->values);
-        uint32_t const actor = peer_read_message_actor(
-            message->values);
+            chunk->values);
+        uint32_t const actor = peer_read_message_actor(chunk->values);
 
         if (peer->mode == PEER_HOST) {
           /*  Check the actor id value.
@@ -300,9 +299,9 @@ kit_status_t peer_input(peer_t *const            peer,
           if (message_mode == PEER_MESSAGE_MODE_SERVICE && !processed)
             status |= PEER_ERROR_UNKNOWN_SERVICE_ID;
 
-          peer_message_ref_t const data = {
+          peer_chunk_ref_t const data = {
             .size   = data_size,
-            .values = message->values + PEER_N_MESSAGE_DATA
+            .values = chunk->values + PEER_N_MESSAGE_DATA
           };
 
           status |= queue_insert(&slot->queue, index, time, actor,
@@ -318,7 +317,7 @@ kit_status_t peer_input(peer_t *const            peer,
           if (message_mode == PEER_MESSAGE_MODE_SERVICE &&
               data_size >= 1) {
             uint8_t const service_id = peer_read_u8(
-                message->values + PEER_N_MESSAGE_DATA);
+                chunk->values + PEER_N_MESSAGE_DATA);
 
             if (service_id == PEER_M_SESSION_RESPONSE) {
               /*  Update client's actor id and host remote address.
@@ -327,7 +326,7 @@ kit_status_t peer_input(peer_t *const            peer,
               peer->actor               = actor;
               slot->remote.address_size = data_size - 1;
               memcpy(slot->remote.address_data,
-                     message->values + PEER_N_MESSAGE_DATA + 1,
+                     chunk->values + PEER_N_MESSAGE_DATA + 1,
                      data_size - 1);
 
               /*  Update actor id for old messages.
@@ -345,9 +344,9 @@ kit_status_t peer_input(peer_t *const            peer,
           if (message_mode == PEER_MESSAGE_MODE_SERVICE && !processed)
             status |= PEER_ERROR_UNKNOWN_SERVICE_ID;
 
-          peer_message_ref_t const data = {
+          peer_chunk_ref_t const data = {
             .size   = data_size,
-            .values = message->values + PEER_N_MESSAGE_DATA
+            .values = chunk->values + PEER_N_MESSAGE_DATA
           };
 
           status |= queue_insert(&peer->queue, index, time, actor,
@@ -355,9 +354,9 @@ kit_status_t peer_input(peer_t *const            peer,
         }
       }
 
-      for (ptrdiff_t k = 0; k < messages.size; k++)
-        DA_DESTROY(messages.values[k]);
-      DA_DESTROY(messages);
+      for (ptrdiff_t k = 0; k < chunks.size; k++)
+        DA_DESTROY(chunks.values[k]);
+      DA_DESTROY(chunks);
 
       slot_found = 1;
       break;
@@ -394,15 +393,15 @@ kit_status_t peer_input(peer_t *const            peer,
       peer_slot_t *const slot = peer->slots.values + i;
 
       for (; slot->in_index < slot->queue.size; slot->in_index++) {
-        peer_message_entry_t const *const message =
-            slot->queue.values + slot->in_index;
+        peer_message_t const *const message = slot->queue.values +
+                                              slot->in_index;
 
         if (message->is_ready == 0)
           break;
 
         assert(slot->actor == message->actor);
 
-        peer_message_ref_t const data = {
+        peer_chunk_ref_t const data = {
           .size = message->data.size, .values = message->data.values
         };
 
@@ -434,20 +433,20 @@ static kit_status_t queue_pack(peer_queue_t const *const q,
   if (size == 0)
     return KIT_OK;
 
-  peer_messages_t     messages;
-  peer_message_refs_t refs;
+  peer_chunks_t     chunks;
+  peer_chunk_refs_t refs;
 
-  DA_INIT(messages, size, alloc);
+  DA_INIT(chunks, size, alloc);
   DA_INIT(refs, size, alloc);
 
-  assert(messages.size == size);
+  assert(chunks.size == size);
   assert(refs.size == size);
 
-  if (messages.size != size || refs.size != size)
+  if (chunks.size != size || refs.size != size)
     return PEER_ERROR_BAD_ALLOC;
 
-  if (messages.size != 0)
-    memset(messages.values, 0, size * sizeof *messages.values);
+  if (chunks.size != 0)
+    memset(chunks.values, 0, size * sizeof *chunks.values);
 
   /*  Prepare messages' data.
    */
@@ -455,39 +454,39 @@ static kit_status_t queue_pack(peer_queue_t const *const q,
   for (ptrdiff_t i = 0; i < size; i++) {
     assert(index + i >= 0 && index + i < q->size);
 
-    peer_message_entry_t const *const entry = q->values + (index + i);
+    peer_message_t const *const message = q->values + (index + i);
 
     ptrdiff_t const full_size = PEER_N_MESSAGE_DATA +
-                                entry->data.size;
+                                message->data.size;
 
-    DA_INIT(messages.values[i], full_size, alloc);
-    if (messages.values[i].size != full_size)
+    DA_INIT(chunks.values[i], full_size, alloc);
+    if (chunks.values[i].size != full_size)
       return PEER_ERROR_BAD_ALLOC;
 
-    peer_write_message(messages.values[i].values,
+    peer_write_message(chunks.values[i].values,
                        PEER_MESSAGE_MODE_APPLICATION, index + i,
-                       entry->time, entry->actor, entry->data.size,
-                       entry->data.values);
+                       message->time, message->actor,
+                       message->data.size, message->data.values);
   }
 
   /*  Pack messages into packets.
    */
 
   for (ptrdiff_t i = 0; i < size; i++) {
-    refs.values[i].size   = messages.values[i].size;
-    refs.values[i].values = messages.values[i].values;
+    refs.values[i].size   = chunks.values[i].size;
+    refs.values[i].values = chunks.values[i].values;
   }
 
-  peer_messages_ref_t mref = { .size   = refs.size,
-                               .values = refs.values };
+  peer_chunks_ref_t chref = { .size   = refs.size,
+                              .values = refs.values };
 
   kit_status_t const result = peer_pack(source_id, destination_id,
-                                        mref, out_packets);
+                                        chref, out_packets);
 
-  for (ptrdiff_t i = 0; i < messages.size; i++)
-    DA_DESTROY(messages.values[i]);
+  for (ptrdiff_t i = 0; i < chunks.size; i++)
+    DA_DESTROY(chunks.values[i]);
 
-  DA_DESTROY(messages);
+  DA_DESTROY(chunks);
   DA_DESTROY(refs);
 
   return result;
@@ -540,17 +539,17 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
                              index, time, slot->actor,
                              slot->local.address_size + 1, data);
 
-          peer_message_ref_t const ref = {
+          peer_chunk_ref_t const ref = {
             .size = PEER_N_MESSAGE_DATA + 1 +
                     slot->local.address_size,
             .values = message
           };
 
-          peer_messages_ref_t const mref = { .size   = 1,
-                                             .values = &ref };
+          peer_chunks_ref_t const chref = { .size   = 1,
+                                            .values = &ref };
 
           result.status |= peer_pack(peer->slots.values[0].local.id,
-                                     slot->remote.id, mref,
+                                     slot->remote.id, chref,
                                      &result.packets);
 
           slot->state = PEER_SLOT_READY;
@@ -585,10 +584,10 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
 
       result.status |= s;
     } else {
-      peer_messages_ref_t mref = { .size = 0, .values = NULL };
+      peer_chunks_ref_t chref = { .size = 0, .values = NULL };
 
       result.status |= peer_pack(slot->local.id, slot->remote.id,
-                                 mref, &result.packets);
+                                 chref, &result.packets);
     }
   }
 

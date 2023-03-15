@@ -11,11 +11,11 @@ extern "C" {
 #endif
 
 typedef struct {
-  int            is_ready;
-  peer_time_t    time;
-  ptrdiff_t      actor;
-  peer_message_t data;
-} peer_message_entry_t;
+  int          is_ready;
+  peer_time_t  time;
+  ptrdiff_t    actor;
+  peer_chunk_t data;
+} peer_message_t;
 
 typedef struct {
   ptrdiff_t id;
@@ -32,7 +32,7 @@ typedef enum {
   PEER_SLOT_READY
 } peer_slot_state_t;
 
-typedef KIT_DA(peer_message_entry_t) peer_queue_t;
+typedef KIT_DA(peer_message_t) peer_queue_t;
 
 typedef struct {
   peer_slot_state_t state;  /*  Session state. */
@@ -65,7 +65,7 @@ kit_status_t peer_init(peer_t *host, peer_mode_t mode,
                        kit_allocator_t alloc);
 kit_status_t peer_open(peer_t *peer, peer_ids_ref_t ids);
 kit_status_t peer_destroy(peer_t *peer);
-kit_status_t peer_queue(peer_t *peer, peer_message_ref_t message);
+kit_status_t peer_queue(peer_t *peer, peer_chunk_ref_t message_data);
 kit_status_t peer_connect(peer_t *client, ptrdiff_t server_id);
 kit_status_t peer_input(peer_t *peer, peer_packets_ref_t packets);
 

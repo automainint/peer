@@ -2,23 +2,23 @@
 
 #include "serial.h"
 
-kit_status_t peer_pack(ptrdiff_t const           source_id,
-                       ptrdiff_t const           destination_id,
-                       peer_messages_ref_t const messages,
-                       peer_packets_t *const     out_packets) {
-  /*  Pack messages into packets.
+kit_status_t peer_pack(ptrdiff_t const         source_id,
+                       ptrdiff_t const         destination_id,
+                       peer_chunks_ref_t const chunks,
+                       peer_packets_t *const   out_packets) {
+  /*  Pack chunks into packets.
    */
 
-  assert(messages.size >= 0);
-  assert(messages.size == 0 || messages.values != NULL);
+  assert(chunks.size >= 0);
+  assert(chunks.size == 0 || chunks.values != NULL);
   assert(source_id != destination_id);
   assert(out_packets != NULL);
 
   ptrdiff_t previous_size = out_packets->size;
   ptrdiff_t offset        = PEER_PACKET_SIZE;
 
-  for (ptrdiff_t i = 0; i < messages.size; i++) {
-    if (offset + messages.values[i].size > PEER_PACKET_SIZE) {
+  for (ptrdiff_t i = 0; i < chunks.size; i++) {
+    if (offset + chunks.values[i].size > PEER_PACKET_SIZE) {
       if (out_packets->size > previous_size) {
         /*  Write the previous packet header.
          */
@@ -53,33 +53,33 @@ kit_status_t peer_pack(ptrdiff_t const           source_id,
     }
 
     {
-      /*  Make sure, the message size value is correct.
+      /*  Make sure, the chunk size value is correct.
        */
 
-      ptrdiff_t const message_size = (ptrdiff_t)
-          peer_read_message_size(messages.values[i].values);
+      ptrdiff_t const chunk_size = (ptrdiff_t) peer_read_message_size(
+          chunks.values[i].values);
 
-      assert(messages.values[i].size == message_size);
+      assert(chunks.values[i].size == chunk_size);
 
-      if (messages.values[i].size != message_size)
+      if (chunks.values[i].size != chunk_size)
         return PEER_ERROR_INVALID_MESSAGE_SIZE;
     }
 
     {
-      /*  Add message to the current packet.
+      /*  Add chunk to the current packet.
        */
 
       assert(out_packets->size > 0);
-      assert(messages.values[i].size + PEER_N_PACKET_MESSAGES <
+      assert(chunks.values[i].size + PEER_N_PACKET_MESSAGES <
              PEER_PACKET_SIZE);
 
       ptrdiff_t const m = out_packets->size - 1;
 
       memcpy(out_packets->values[m].data + offset,
-             messages.values[i].values, messages.values[i].size);
+             chunks.values[i].values, chunks.values[i].size);
     }
 
-    offset += messages.values[i].size;
+    offset += chunks.values[i].size;
   }
 
   if (out_packets->size == previous_size) {
@@ -119,13 +119,13 @@ kit_status_t peer_pack(ptrdiff_t const           source_id,
 }
 
 kit_status_t peer_unpack(peer_packets_ref_t const packets,
-                         peer_messages_t *const   out_messages) {
-  /*  Unpack messages from packets.
+                         peer_chunks_t *const     out_chunks) {
+  /*  Unpack chunks from packets.
    */
 
   assert(packets.size >= 0);
   assert(packets.size == 0 || packets.values != NULL);
-  assert(out_messages != NULL);
+  assert(out_chunks != NULL);
 
   kit_status_t status = KIT_OK;
 
@@ -156,22 +156,22 @@ kit_status_t peer_unpack(peer_packets_ref_t const packets,
         break;
       }
 
-      ptrdiff_t const n = out_messages->size;
-      DA_RESIZE(*out_messages, n + 1);
-      if (out_messages->size != n + 1) {
+      ptrdiff_t const n = out_chunks->size;
+      DA_RESIZE(*out_chunks, n + 1);
+      if (out_chunks->size != n + 1) {
         status |= PEER_ERROR_BAD_ALLOC;
         break;
       }
 
-      DA_INIT(out_messages->values[n], size, out_messages->alloc);
-      if (out_messages->values[n].size != size) {
+      DA_INIT(out_chunks->values[n], size, out_chunks->alloc);
+      if (out_chunks->values[n].size != size) {
         status |= PEER_ERROR_BAD_ALLOC;
         break;
       }
 
-      assert(out_messages->values[n].values != NULL);
+      assert(out_chunks->values[n].values != NULL);
 
-      memcpy(out_messages->values[n].values,
+      memcpy(out_chunks->values[n].values,
              packets.values[i].data + offset, size);
 
       offset += size;
