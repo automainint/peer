@@ -477,6 +477,15 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
     return result;
   }
 
+  if (peer->time > INT64_MAX - time_elapsed) {
+    /*  FIXME
+     *  Initiate a new session and reset time.
+     */
+
+    result.status = PEER_ERROR_TIME_OVERFLOW;
+    return result;
+  }
+
   result.status = KIT_OK;
 
   /*  Update time.

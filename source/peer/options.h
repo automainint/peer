@@ -14,11 +14,11 @@ enum {
   PEER_VERSION     = 1,
   PEER_DEVELOPMENT = 1,
 
+  PEER_UNDEFINED = -1, /* Undefined value for id, index and agent. */
+
   PEER_ADDRESS_SIZE =
       20, /* Address size should be big enough to contain IPv4 and
              IPv6 addresses and ports (6 bytes or 18 bytes). */
-
-  PEER_UNDEFINED = -1, /* Undefined value for id, index and agent. */
 
   /*  Protocol settings.
    */
@@ -61,12 +61,13 @@ enum {
   PEER_M_PONG             = 3,
   PEER_M_SESSION_REQUEST  = 4,
   PEER_M_SESSION_RESPONSE = 5,
+  PEER_M_SESSION_RESUME   = 6,
 
   /*  Data offsets.
    */
 
   PEER_N_PACKET_SESSION  = 0,  /* 4 bytes */
-  PEER_N_PACKET_INDEX    = 4,  /* 8 bytes */
+  PEER_N_PACKET_INDEX    = 4,  /* 8 bytes. */
   PEER_N_PACKET_MODE     = 12, /* 1 byte */
   PEER_N_PACKET_SIZE     = 13, /* 2 bytes */
   PEER_N_PACKET_MESSAGES = 15,
@@ -87,22 +88,23 @@ enum {
   /*  Error codes.
    */
 
-  PEER_ERROR_BAD_ALLOC             = 0x0001,
-  PEER_ERROR_INVALID_CIPHER        = 0x0002,
-  PEER_ERROR_INVALID_KEY           = 0x0004,
-  PEER_ERROR_INVALID_PEER          = 0x0008,
-  PEER_ERROR_INVALID_MODE          = 0x0010,
-  PEER_ERROR_INVALID_MESSAGE       = 0x0020,
-  PEER_ERROR_INVALID_ACTOR         = 0x0040,
-  PEER_ERROR_INVALID_IDS           = 0x0080,
-  PEER_ERROR_INVALID_TIME_ELAPSED  = 0x0100,
-  PEER_ERROR_INVALID_MESSAGE_SIZE  = 0x0200,
-  PEER_ERROR_INVALID_PACKET_SIZE   = 0x0400,
-  PEER_ERROR_INVALID_MESSAGE_INDEX = 0x0800,
-  PEER_ERROR_NO_FREE_SLOTS         = 0x1000,
-  PEER_ERROR_SLOT_NOT_FOUND        = 0x2000,
-  PEER_ERROR_UNKNOWN_SERVICE_ID    = 0x4000,
-  PEER_ERROR_INVALID_OUT_INDEX     = 0x8000,
+  PEER_ERROR_BAD_ALLOC             = 0x000001,
+  PEER_ERROR_INVALID_CIPHER        = 0x000002,
+  PEER_ERROR_INVALID_KEY           = 0x000004,
+  PEER_ERROR_INVALID_PEER          = 0x000008,
+  PEER_ERROR_INVALID_MODE          = 0x000010,
+  PEER_ERROR_INVALID_MESSAGE       = 0x000020,
+  PEER_ERROR_INVALID_ACTOR         = 0x000040,
+  PEER_ERROR_INVALID_IDS           = 0x000080,
+  PEER_ERROR_INVALID_TIME_ELAPSED  = 0x000100,
+  PEER_ERROR_INVALID_MESSAGE_SIZE  = 0x000200,
+  PEER_ERROR_INVALID_PACKET_SIZE   = 0x000400,
+  PEER_ERROR_INVALID_MESSAGE_INDEX = 0x000800,
+  PEER_ERROR_NO_FREE_SLOTS         = 0x001000,
+  PEER_ERROR_SLOT_NOT_FOUND        = 0x002000,
+  PEER_ERROR_UNKNOWN_SERVICE_ID    = 0x004000,
+  PEER_ERROR_INVALID_OUT_INDEX     = 0x008000,
+  PEER_ERROR_TIME_OVERFLOW         = 0x010000,
   PEER_ERROR_NOT_IMPLEMENTED       = -1
 };
 

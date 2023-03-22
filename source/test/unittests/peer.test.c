@@ -6,6 +6,7 @@
 #include <kit_test/test.h>
 
 /*  TODO
+ *  - Time synchronization.
  *  - Heartbeat packets.
  *  - Ping.
  *  - Connection timeout.

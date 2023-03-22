@@ -1,7 +1,7 @@
 target_sources(
   peer
     PRIVATE
-      cipher.c packet.c udp_socket_pool.c serial.c peer.c
+      cipher.c packet.c udp_socket_pool.c peer.c
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/peer.h>
       $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/serial.h>
