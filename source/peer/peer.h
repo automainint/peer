@@ -56,6 +56,7 @@ typedef enum { PEER_HOST, PEER_CLIENT } peer_mode_t;
 typedef struct {
   kit_allocator_t alloc;
   peer_mode_t     mode;  /*  Host or client. */
+  peer_time_t     time;  /*  Current time. */
   ptrdiff_t       actor; /*  Peer actor id. */
   peer_slots_t    slots; /*  All sessions. */
   peer_queue_t    queue; /*  Shared mutual message queue. */

@@ -260,9 +260,6 @@ kit_status_t peer_input(peer_t *const            peer,
         peer_chunk_t *const chunk = chunks.values + k;
 
         /*  FIXME
-         *  Save messages to slot queue on host.
-         *  Synchronize mutual queue on host.
-         *  Save messages to mutual queue on client.
          *  Check the checksum.
          */
 
@@ -383,37 +380,6 @@ kit_status_t peer_input(peer_t *const            peer,
     }
   }
 
-  if (peer->mode == PEER_HOST) {
-    /*  Synchronize mutual message queue.
-     */
-
-    peer_time_t const time = 0;
-
-    for (ptrdiff_t i = 1; i < peer->slots.size; i++) {
-      peer_slot_t *const slot = peer->slots.values + i;
-
-      for (; slot->in_index < slot->queue.size; slot->in_index++) {
-        peer_message_t const *const message = slot->queue.values +
-                                              slot->in_index;
-
-        if (message->is_ready == 0)
-          break;
-
-        assert(slot->actor == message->actor);
-
-        peer_chunk_ref_t const data = {
-          .size = message->data.size, .values = message->data.values
-        };
-
-        kit_status_t const s = queue_append(
-            &peer->queue, time, slot->actor, data, peer->alloc);
-
-        assert(s == KIT_OK);
-        status |= s;
-      }
-    }
-  }
-
   return status;
 }
 
@@ -513,7 +479,38 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
 
   result.status = KIT_OK;
 
+  /*  Update time.
+   */
+  peer->time += time_elapsed;
+
   if (peer->mode == PEER_HOST) {
+    /*  Synchronize mutual message queue.
+     */
+
+    for (ptrdiff_t i = 1; i < peer->slots.size; i++) {
+      peer_slot_t *const slot = peer->slots.values + i;
+
+      for (; slot->in_index < slot->queue.size; slot->in_index++) {
+        peer_message_t const *const message = slot->queue.values +
+                                              slot->in_index;
+
+        if (message->is_ready == 0)
+          break;
+
+        assert(slot->actor == message->actor);
+
+        peer_chunk_ref_t const data = {
+          .size = message->data.size, .values = message->data.values
+        };
+
+        kit_status_t const s = queue_append(
+            &peer->queue, peer->time, slot->actor, data, peer->alloc);
+
+        assert(s == KIT_OK);
+        result.status |= s;
+      }
+    }
+
     /*  Send messages to clients.
      */
 
