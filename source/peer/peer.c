@@ -322,16 +322,18 @@ kit_status_t peer_input(peer_t *const            peer,
           if (message_mode == PEER_MESSAGE_MODE_SERVICE && !processed)
             status |= PEER_ERROR_UNKNOWN_SERVICE_ID;
 
-          /*  Add message to the slot queue.
-           */
+          if (message_mode != PEER_MESSAGE_MODE_SERVICE) {
+            /*  Add message to the slot queue.
+             */
 
-          peer_chunk_ref_t const data = {
-            .size   = data_size,
-            .values = chunk->values + PEER_N_MESSAGE_DATA
-          };
+            peer_chunk_ref_t const data = {
+              .size   = data_size,
+              .values = chunk->values + PEER_N_MESSAGE_DATA
+            };
 
-          status |= queue_insert(&slot->queue, index, time, actor,
-                                 data, peer->alloc);
+            status |= queue_insert(&slot->queue, index, time, actor,
+                                   data, peer->alloc);
+          }
         }
 
         if (peer->mode == PEER_CLIENT) {
@@ -380,16 +382,18 @@ kit_status_t peer_input(peer_t *const            peer,
           if (message_mode == PEER_MESSAGE_MODE_SERVICE && !processed)
             status |= PEER_ERROR_UNKNOWN_SERVICE_ID;
 
-          /*  Add message to the mutual queue.
-           */
+          if (message_mode != PEER_MESSAGE_MODE_SERVICE) {
+            /*  Add message to the mutual queue.
+             */
 
-          peer_chunk_ref_t const data = {
-            .size   = data_size,
-            .values = chunk->values + PEER_N_MESSAGE_DATA
-          };
+            peer_chunk_ref_t const data = {
+              .size   = data_size,
+              .values = chunk->values + PEER_N_MESSAGE_DATA
+            };
 
-          status |= queue_insert(&peer->queue, index, time, actor,
-                                 data, peer->alloc);
+            status |= queue_insert(&peer->queue, index, time, actor,
+                                   data, peer->alloc);
+          }
 
           /*  Synchronize mutual time.
            */
@@ -416,8 +420,7 @@ kit_status_t peer_input(peer_t *const            peer,
      */
 
     /*  FIXME
-     *  Check if the client sent a session request or a session resume
-     *  message.
+     *  Check if the client sent a session request message.
      */
 
     for (ptrdiff_t j = 1; j < peer->slots.size; j++) {
@@ -436,6 +439,91 @@ kit_status_t peer_input(peer_t *const            peer,
   return status;
 }
 
+static kit_status_t chunks_append_trail(
+    peer_queue_t const *const q, ptrdiff_t const index,
+    peer_chunks_t *const out_chunks) {
+  assert(q != NULL);
+  assert(out_chunks != NULL);
+  assert(index >= 0 && index <= q->size);
+
+  kit_allocator_t const alloc = out_chunks->alloc;
+
+  ptrdiff_t trail_size = PEER_TRAIL_SERIAL_SIZE - (q->size - index);
+
+  if (trail_size > index)
+    trail_size = index;
+
+  if (trail_size > 0) {
+    ptrdiff_t const offset = out_chunks->size;
+    DA_RESIZE(*out_chunks, offset + trail_size);
+    assert(out_chunks->size == offset + trail_size);
+    if (out_chunks->size != offset + trail_size)
+      return PEER_ERROR_BAD_ALLOC;
+
+    ptrdiff_t const trail_begin = index - trail_size;
+
+    for (ptrdiff_t i = 0; i < trail_size; i++) {
+      peer_message_t const *const message = q->values +
+                                            (trail_begin + i);
+      peer_chunk_t *const chunk = out_chunks->values + (offset + i);
+      ptrdiff_t const     chunk_size = PEER_N_MESSAGE_DATA +
+                                   message->data.size;
+
+      DA_INIT(*chunk, chunk_size, alloc);
+
+      if (chunk->size != chunk_size) {
+        for (ptrdiff_t j = 0; j <= i; j++)
+          DA_DESTROY(out_chunks->values[offset + j]);
+        DA_RESIZE(*out_chunks, offset);
+        return PEER_ERROR_BAD_ALLOC;
+      }
+
+      peer_write_message(chunk->values, PEER_MESSAGE_MODE_APPLICATION,
+                         trail_begin + i, message->time,
+                         message->actor, message->data.size,
+                         message->data.values);
+    }
+  }
+
+  /*  TODO
+   *  Send random previous messages.
+   */
+
+  return KIT_OK;
+}
+
+typedef struct {
+  kit_status_t      status;
+  peer_chunk_refs_t refs;
+  peer_chunks_ref_t ref;
+} chunks_wrap_t;
+
+static chunks_wrap_t chunks_wrap(peer_chunks_t const *const chunks,
+                                 kit_allocator_t const      alloc) {
+  assert(chunks != NULL);
+
+  chunks_wrap_t result;
+  memset(&result, 0, sizeof result);
+
+  ptrdiff_t const size = chunks->size;
+
+  DA_INIT(result.refs, size, alloc);
+  assert(result.refs.size == size);
+  if (result.refs.size != size) {
+    result.status = PEER_ERROR_BAD_ALLOC;
+    return result;
+  }
+
+  for (ptrdiff_t i = 0; i < size; i++) {
+    result.refs.values[i].size   = chunks->values[i].size;
+    result.refs.values[i].values = chunks->values[i].values;
+  }
+
+  result.ref.size   = result.refs.size;
+  result.ref.values = result.refs.values;
+  return result;
+}
+
 static kit_status_t queue_pack(peer_queue_t const *const q,
                                ptrdiff_t const           index,
                                ptrdiff_t                 source_id,
@@ -444,24 +532,18 @@ static kit_status_t queue_pack(peer_queue_t const *const q,
                                kit_allocator_t       alloc) {
   ptrdiff_t const size = q->size - index;
 
+  assert(q != NULL);
   assert(size >= 0);
 
   if (size < 0)
     return PEER_ERROR_INVALID_OUT_INDEX;
-
   if (size == 0)
     return KIT_OK;
 
-  peer_chunks_t     chunks;
-  peer_chunk_refs_t refs;
-
+  peer_chunks_t chunks;
   DA_INIT(chunks, size, alloc);
-  DA_INIT(refs, size, alloc);
-
   assert(chunks.size == size);
-  assert(refs.size == size);
-
-  if (chunks.size != size || refs.size != size)
+  if (chunks.size != size)
     return PEER_ERROR_BAD_ALLOC;
 
   if (chunks.size != 0)
@@ -488,25 +570,29 @@ static kit_status_t queue_pack(peer_queue_t const *const q,
                        message->data.size, message->data.values);
   }
 
+  /*  Append trail messages.
+   */
+
+  kit_status_t result = chunks_append_trail(q, index, &chunks);
+
   /*  Pack messages into packets.
    */
 
-  for (ptrdiff_t i = 0; i < size; i++) {
-    refs.values[i].size   = chunks.values[i].size;
-    refs.values[i].values = chunks.values[i].values;
+  chunks_wrap_t const wrap = chunks_wrap(&chunks, alloc);
+
+  if (wrap.status != KIT_OK) {
+    result |= wrap.status;
+    return result;
   }
 
-  peer_chunks_ref_t chref = { .size   = refs.size,
-                              .values = refs.values };
-
-  kit_status_t const result = peer_pack(source_id, destination_id,
-                                        chref, out_packets);
+  result |= peer_pack(source_id, destination_id, wrap.ref,
+                      out_packets);
 
   for (ptrdiff_t i = 0; i < chunks.size; i++)
     DA_DESTROY(chunks.values[i]);
 
   DA_DESTROY(chunks);
-  DA_DESTROY(refs);
+  DA_DESTROY(wrap.refs);
 
   return result;
 }
@@ -651,26 +737,51 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
             /*  No new messages. Send heartbeat message.
              */
 
-            uint8_t message[PEER_N_MESSAGE_DATA + 1];
+            peer_chunks_t chunks;
+            DA_INIT(chunks, 1, peer->alloc);
+            assert(chunks.size == 1);
+            if (chunks.size != 1) {
+              result.status |= PEER_ERROR_BAD_ALLOC;
+              break;
+            }
 
-            ptrdiff_t const index        = PEER_UNDEFINED;
-            uint8_t const   id_heartbeat = PEER_M_HEARTBEAT;
+            DA_INIT(chunks.values[0], PEER_N_MESSAGE_DATA + 1,
+                    peer->alloc);
+            assert(chunks.values[0].size == PEER_N_MESSAGE_DATA + 1);
 
-            peer_write_message(message, PEER_MESSAGE_MODE_SERVICE,
-                               index, peer->time, peer->actor,
-                               sizeof id_heartbeat, &id_heartbeat);
+            if (chunks.values[0].size != PEER_N_MESSAGE_DATA + 1) {
+              DA_DESTROY(chunks.values[0]);
+              DA_RESIZE(chunks, 0);
+              result.status |= PEER_ERROR_BAD_ALLOC;
+            } else {
+              ptrdiff_t const index        = PEER_UNDEFINED;
+              uint8_t const   id_heartbeat = PEER_M_HEARTBEAT;
 
-            peer_chunk_ref_t const ref = { .size   = sizeof message,
-                                           .values = message };
+              peer_write_message(chunks.values[0].values,
+                                 PEER_MESSAGE_MODE_SERVICE, index,
+                                 peer->time, peer->actor,
+                                 sizeof id_heartbeat, &id_heartbeat);
+            }
 
-            peer_chunks_ref_t const refs = { .size   = 1,
-                                             .values = &ref };
+            result.status |= chunks_append_trail(
+                &peer->queue, slot->out_index, &chunks);
+
+            chunks_wrap_t const wrap = chunks_wrap(&chunks,
+                                                   peer->alloc);
+
+            result.status |= wrap.status;
 
             result.status |= peer_pack(slot->local.id,
-                                       slot->remote.id, refs,
+                                       slot->remote.id, wrap.ref,
                                        &result.packets);
 
             slot->clock_heartbeat = PEER_TIMEOUT_HEARTBEAT;
+
+            for (ptrdiff_t i = 0; i < chunks.size; i++)
+              DA_DESTROY(chunks.values[i]);
+
+            DA_DESTROY(chunks);
+            DA_DESTROY(wrap.refs);
           }
         } break;
 
@@ -700,24 +811,49 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
       /*  No new messages. Send heartbeat message.
        */
 
-      uint8_t message[PEER_N_MESSAGE_DATA + 1];
+      peer_chunks_t chunks;
+      DA_INIT(chunks, 1, peer->alloc);
+      assert(chunks.size == 1);
 
-      ptrdiff_t const index        = PEER_UNDEFINED;
-      uint8_t const   id_heartbeat = PEER_M_HEARTBEAT;
+      if (chunks.size != 1) {
+        result.status |= PEER_ERROR_BAD_ALLOC;
+        return result;
+      }
 
-      peer_write_message(message, PEER_MESSAGE_MODE_SERVICE, index,
-                         peer->time_local, peer->actor,
-                         sizeof id_heartbeat, &id_heartbeat);
+      DA_INIT(chunks.values[0], PEER_N_MESSAGE_DATA + 1, peer->alloc);
+      assert(chunks.values[0].size == PEER_N_MESSAGE_DATA + 1);
 
-      peer_chunk_ref_t const ref = { .size   = sizeof message,
-                                     .values = message };
+      if (chunks.values[0].size != PEER_N_MESSAGE_DATA + 1) {
+        DA_DESTROY(chunks.values[0]);
+        DA_RESIZE(chunks, 0);
+        result.status |= PEER_ERROR_BAD_ALLOC;
+      } else {
+        ptrdiff_t const index        = PEER_UNDEFINED;
+        uint8_t const   id_heartbeat = PEER_M_HEARTBEAT;
 
-      peer_chunks_ref_t const refs = { .size = 1, .values = &ref };
+        peer_write_message(chunks.values[0].values,
+                           PEER_MESSAGE_MODE_SERVICE, index,
+                           peer->time_local, peer->actor,
+                           sizeof id_heartbeat, &id_heartbeat);
+      }
+
+      result.status |= chunks_append_trail(&peer->queue,
+                                           slot->out_index, &chunks);
+
+      chunks_wrap_t const wrap = chunks_wrap(&chunks, peer->alloc);
+
+      result.status |= wrap.status;
 
       result.status |= peer_pack(slot->local.id, slot->remote.id,
-                                 refs, &result.packets);
+                                 wrap.ref, &result.packets);
 
       slot->clock_heartbeat = PEER_TIMEOUT_HEARTBEAT;
+
+      for (ptrdiff_t i = 0; i < chunks.size; i++)
+        DA_DESTROY(chunks.values[i]);
+
+      DA_DESTROY(chunks);
+      DA_DESTROY(wrap.refs);
     }
   }
 

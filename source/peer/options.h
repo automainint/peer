@@ -29,6 +29,16 @@ enum {
 
   PEER_MT64_KEY_SIZE = 128, /* Key size for mt64 stream cipher. */
 
+  PEER_TRAIL_SERIAL_SIZE =
+      5, /* Number of recent messages to resend. */
+
+  PEER_TRAIL_SCATTER_SIZE =
+      5, /* Number of randomly picked previous messages to resend. */
+
+  PEER_TRAIL_SCATTER_DISTACNE =
+      100, /* Maximum distance of randomly picked previous messages to
+              resend. */
+
   PEER_TIMEOUT_HEARTBEAT =
       10, /* Peer will send a heartbeat notification if no messages
              was sent in 10 ms. */
