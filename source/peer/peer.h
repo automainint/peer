@@ -46,6 +46,8 @@ typedef struct {
   ptrdiff_t actor;     /*  Client actor id. */
   ptrdiff_t in_index;  /*  Incoming message queue index. */
   ptrdiff_t out_index; /*  Outgoing message queue index. */
+  peer_time_t
+      clock_heartbeat; /*  Time left before the next heartbeat. */
 } peer_slot_t;
 
 typedef KIT_DA(peer_slot_t) peer_slots_t;

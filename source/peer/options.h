@@ -1,11 +1,11 @@
 #ifndef PEER_OPTIONS_H
 #define PEER_OPTIONS_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
 
 enum {
   /*  Internal constants.
@@ -29,14 +29,14 @@ enum {
 
   PEER_MT64_KEY_SIZE = 128, /* Key size for mt64 stream cipher. */
 
-  PEER_HEARTBEAT_TIMEOUT =
+  PEER_TIMEOUT_HEARTBEAT =
       10, /* Peer will send a heartbeat notification if no messages
              was sent in 10 ms. */
 
-  PEER_PING_TIMEOUT =
+  PEER_TIMEOUT_PING =
       200, /* Peer will send a ping request every 200 ms. */
 
-  PEER_CONNECTION_TIMEOUT =
+  PEER_TIMEOUT_CONNECTION =
       2000, /* Peer will change the connection status to lost after 2
                seconds of silence. */
 
@@ -106,6 +106,7 @@ enum {
   PEER_ERROR_UNKNOWN_SERVICE_ID    = 0x008000,
   PEER_ERROR_INVALID_OUT_INDEX     = 0x010000,
   PEER_ERROR_TIME_OVERFLOW         = 0x020000,
+  PEER_ERROR_INVALID_SLOT_STATE    = 0x040000,
   PEER_ERROR_NOT_IMPLEMENTED       = -1
 };
 

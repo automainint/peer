@@ -301,6 +301,22 @@ kit_status_t peer_input(peer_t *const            peer,
 
           int processed = 0;
 
+          if (message_mode == PEER_MESSAGE_MODE_SERVICE &&
+              data_size >= 1) {
+            uint8_t const service_id = peer_read_u8(
+                chunk->values + PEER_N_MESSAGE_DATA);
+
+            switch (service_id) {
+              case PEER_M_HEARTBEAT:
+                /*  Heartbeat.
+                 */
+                processed = 1;
+                break;
+
+              default:;
+            }
+          }
+
           assert(message_mode != PEER_MESSAGE_MODE_SERVICE ||
                  processed == 1);
 
@@ -330,23 +346,33 @@ kit_status_t peer_input(peer_t *const            peer,
             uint8_t const service_id = peer_read_u8(
                 chunk->values + PEER_N_MESSAGE_DATA);
 
-            if (service_id == PEER_M_SESSION_RESPONSE) {
-              /*  Update client's actor id and host remote address.
-               */
-              assert(data_size - 1 <= PEER_ADDRESS_SIZE);
-              peer->actor               = actor;
-              slot->remote.address_size = data_size - 1;
-              memcpy(slot->remote.address_data,
-                     chunk->values + PEER_N_MESSAGE_DATA + 1,
-                     data_size - 1);
+            switch (service_id) {
+              case PEER_M_HEARTBEAT:
+                /*  Heartbeat.
+                 */
+                processed = 1;
+                break;
 
-              /*  Update actor id for old messages.
-               */
-              for (ptrdiff_t k = 0; k < slot->queue.size; k++)
-                slot->queue.values[k].actor = actor;
+              case PEER_M_SESSION_RESPONSE: {
+                /*  Update client's actor id and host remote address.
+                 */
+                assert(data_size - 1 <= PEER_ADDRESS_SIZE);
+                peer->actor               = actor;
+                slot->remote.address_size = data_size - 1;
+                memcpy(slot->remote.address_data,
+                       chunk->values + PEER_N_MESSAGE_DATA + 1,
+                       data_size - 1);
+
+                /*  Update actor id for old messages.
+                 */
+                for (ptrdiff_t k = 0; k < slot->queue.size; k++)
+                  slot->queue.values[k].actor = actor;
+
+                processed = 1;
+              } break;
+
+              default:;
             }
-
-            processed = 1;
           }
 
           assert(message_mode != PEER_MESSAGE_MODE_SERVICE ||
@@ -511,9 +537,17 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
 
   result.status = KIT_OK;
 
-  /*  Update time.
+  /*  Update clock.
    */
+
   peer->time_local += time_elapsed;
+
+  for (ptrdiff_t i = 0; i < peer->slots.size; i++) {
+    peer_slot_t *const slot = peer->slots.values + i;
+
+    if (slot->clock_heartbeat > 0)
+      slot->clock_heartbeat -= time_elapsed;
+  }
 
   if (peer->mode == PEER_HOST) {
     /*  Synchronize time.
@@ -571,10 +605,9 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
                  slot->local.address_size);
 
           ptrdiff_t const index = PEER_UNDEFINED;
-          ptrdiff_t const time  = 0;
 
           peer_write_message(message, PEER_MESSAGE_MODE_SERVICE,
-                             index, time, slot->actor,
+                             index, peer->time, slot->actor,
                              slot->local.address_size + 1, data);
 
           peer_chunk_ref_t const ref = {
@@ -590,24 +623,56 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
                                      slot->remote.id, chref,
                                      &result.packets);
 
-          slot->state = PEER_SLOT_READY;
+          slot->clock_heartbeat = PEER_TIMEOUT_HEARTBEAT;
+          slot->state           = PEER_SLOT_READY;
         } break;
 
         case PEER_SLOT_READY: {
-          /*  Send new messages.
-           */
+          if (slot->out_index < peer->queue.size) {
+            /*  Send new messages.
+             */
 
-          kit_status_t const s = queue_pack(
-              &peer->queue, slot->out_index, slot->local.id,
-              slot->remote.id, &result.packets, peer->alloc);
+            kit_status_t const s = queue_pack(
+                &peer->queue, slot->out_index, slot->local.id,
+                slot->remote.id, &result.packets, peer->alloc);
 
-          if (s == KIT_OK)
-            slot->out_index = peer->queue.size;
+            if (s == KIT_OK)
+              slot->out_index = peer->queue.size;
 
-          result.status |= s;
+            result.status |= s;
+
+            slot->clock_heartbeat = PEER_TIMEOUT_HEARTBEAT;
+
+          } else if (slot->clock_heartbeat <= 0) {
+            /*  No new messages. Send heartbeat message.
+             */
+
+            uint8_t message[PEER_N_MESSAGE_DATA + 1];
+
+            ptrdiff_t const index        = PEER_UNDEFINED;
+            uint8_t const   id_heartbeat = PEER_M_HEARTBEAT;
+
+            peer_write_message(message, PEER_MESSAGE_MODE_SERVICE,
+                               index, peer->time, peer->actor,
+                               sizeof id_heartbeat, &id_heartbeat);
+
+            peer_chunk_ref_t const ref = { .size   = sizeof message,
+                                           .values = message };
+
+            peer_chunks_ref_t const refs = { .size   = 1,
+                                             .values = &ref };
+
+            result.status |= peer_pack(slot->local.id,
+                                       slot->remote.id, refs,
+                                       &result.packets);
+
+            slot->clock_heartbeat = PEER_TIMEOUT_HEARTBEAT;
+          }
         } break;
 
-        default:;
+        default:
+          assert(0);
+          result.status |= PEER_ERROR_INVALID_SLOT_STATE;
       }
     }
   }
@@ -627,14 +692,28 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
         slot->out_index = slot->queue.size;
 
       result.status |= s;
-    } else {
-      /*  Send dummy packet.
+    } else if (slot->clock_heartbeat <= 0) {
+      /*  No new messages. Send heartbeat message.
        */
 
-      peer_chunks_ref_t chref = { .size = 0, .values = NULL };
+      uint8_t message[PEER_N_MESSAGE_DATA + 1];
+
+      ptrdiff_t const index        = PEER_UNDEFINED;
+      uint8_t const   id_heartbeat = PEER_M_HEARTBEAT;
+
+      peer_write_message(message, PEER_MESSAGE_MODE_SERVICE, index,
+                         peer->time_local, peer->actor,
+                         sizeof id_heartbeat, &id_heartbeat);
+
+      peer_chunk_ref_t const ref = { .size   = sizeof message,
+                                     .values = message };
+
+      peer_chunks_ref_t const refs = { .size = 1, .values = &ref };
 
       result.status |= peer_pack(slot->local.id, slot->remote.id,
-                                 chref, &result.packets);
+                                 refs, &result.packets);
+
+      slot->clock_heartbeat = PEER_TIMEOUT_HEARTBEAT;
     }
   }
 

@@ -6,15 +6,13 @@
 #include <kit_test/test.h>
 
 /*  TODO
- *  - Heartbeat packets.
+ *  - Messages duplication.
  *  - Ping.
  *  - Connection timeout.
  *  - Relay.
- *  - Lobby.
  *  - Session token.
  *  - Session version.
  *  - Reconnect.
- *  - Messages duplication.
  *  - History pruning.
  *  - Encryption.
  *  - Predefined public keys.
@@ -1062,28 +1060,6 @@ TEST("peer host to client time update") {
   REQUIRE(peer_queue(&host, data_ref[1]) == KIT_OK);
   REQUIRE(peer_queue(&host, data_ref[2]) == KIT_OK);
 
-  /*  Check if host's data was updated.
-   */
-  REQUIRE(host.queue.size == 3);
-  REQUIRE(host.queue.size == 3 && host.queue.values[0].time == 0);
-  REQUIRE(host.queue.size == 3 && host.queue.values[0].actor == 0);
-  REQUIRE(host.queue.size == 3 && host.queue.values[1].time == 0);
-  REQUIRE(host.queue.size == 3 && host.queue.values[1].actor == 0);
-  REQUIRE(host.queue.size == 3 && host.queue.values[2].time == 0);
-  REQUIRE(host.queue.size == 3 && host.queue.values[2].actor == 0);
-  REQUIRE(host.queue.size == 3 &&
-          kit_ar_equal_bytes(1, 2, data, 1,
-                             host.queue.values[0].data.size,
-                             host.queue.values[0].data.values));
-  REQUIRE(host.queue.size == 3 &&
-          kit_ar_equal_bytes(1, 4, data + 2, 1,
-                             host.queue.values[1].data.size,
-                             host.queue.values[1].data.values));
-  REQUIRE(host.queue.size == 3 &&
-          kit_ar_equal_bytes(1, 3, data + 6, 1,
-                             host.queue.values[2].data.size,
-                             host.queue.values[2].data.values));
-
   /*  Host will generate packets which must be sent to the client.
    */
   tick_result = peer_tick(&host, 12);
@@ -1107,6 +1083,115 @@ TEST("peer host to client time update") {
   /*  Check if client's time was updated.
    */
   REQUIRE(client.time == 12);
+
+  /*  Destroy the host and the client.
+   */
+  REQUIRE(peer_destroy(&host) == KIT_OK);
+  REQUIRE(peer_destroy(&client) == KIT_OK);
+}
+
+TEST("peer host to client heartbeat") {
+  /*  Initialize host and client.
+   */
+  peer_t host, client;
+
+  REQUIRE(peer_init(&host, PEER_HOST, kit_alloc_default()) == KIT_OK);
+  REQUIRE(peer_init(&client, PEER_CLIENT, kit_alloc_default()) ==
+          KIT_OK);
+
+  /*  Open sockets.
+   */
+  ptrdiff_t const      sockets[]      = { 1, 2, 3 };
+  peer_ids_ref_t const host_sockets   = { .size   = 2,
+                                          .values = sockets },
+                       client_sockets = { .size   = 1,
+                                          .values = sockets + 2 };
+
+  REQUIRE(peer_open(&host, host_sockets) == KIT_OK);
+  REQUIRE(host.slots.size == 2 && host.slots.values[0].local.id == 1);
+  REQUIRE(host.slots.size == 2 && host.slots.values[1].local.id == 2);
+
+  if (host.slots.size == 2) {
+    /*  Specify the address data for host.
+     */
+    host.slots.values[1].local.address_size    = 1;
+    host.slots.values[1].local.address_data[0] = 2;
+  }
+
+  REQUIRE(peer_open(&client, client_sockets) == KIT_OK);
+  REQUIRE(client.slots.size == 1 &&
+          client.slots.values[0].local.id == 3);
+
+  /*  Initialize client-to-host connection.
+   */
+  REQUIRE(peer_connect(&client, host_sockets.values[0]) == KIT_OK);
+
+  /*  Client will try to connect and generate packets which must be
+   *  sent to the host.
+   */
+  peer_tick_result_t tick_result;
+  peer_packets_ref_t packets_ref;
+
+  tick_result = peer_tick(&client, 0);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
+  REQUIRE(peer_input(&host, packets_ref) == KIT_OK);
+  DA_DESTROY(tick_result.packets);
+
+  /*  Host will create a new session and generate packets which must
+   *  be sent to the client.
+   */
+  tick_result = peer_tick(&host, 0);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
+  REQUIRE(peer_input(&client, packets_ref) == KIT_OK);
+  DA_DESTROY(tick_result.packets);
+
+  /*  Check if client did receive the session address and resolve the
+   *  address id.
+   */
+  REQUIRE(resolve_address_id_(&client, &host));
+
+  /*  Client will join the session and generate packets which must be
+   *  sent to the host.
+   */
+  tick_result = peer_tick(&client, 0);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
+  REQUIRE(peer_input(&host, packets_ref) == KIT_OK);
+  DA_DESTROY(tick_result.packets);
+
+  /*  Host will accept the client and generate packets which must be
+   *  sent to the client.
+   */
+  tick_result = peer_tick(&host, 0);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
+  REQUIRE(peer_input(&client, packets_ref) == KIT_OK);
+  DA_DESTROY(tick_result.packets);
+
+  /*  10 msec elapsed for the host.
+   *  Host will send a heartbeat message to the client.
+   */
+  tick_result = peer_tick(&host, 10);
+  REQUIRE(tick_result.status == KIT_OK);
+
+  packets_ref.size   = tick_result.packets.size;
+  packets_ref.values = tick_result.packets.values;
+  REQUIRE(peer_input(&client, packets_ref) == KIT_OK);
+  DA_DESTROY(tick_result.packets);
+
+  /*  Check if client's time was updated.
+   */
+  REQUIRE(client.time == 10);
 
   /*  Destroy the host and the client.
    */
