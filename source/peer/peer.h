@@ -54,12 +54,14 @@ typedef KIT_AR(ptrdiff_t) peer_ids_ref_t;
 typedef enum { PEER_HOST, PEER_CLIENT } peer_mode_t;
 
 typedef struct {
-  kit_allocator_t alloc;
-  peer_mode_t     mode;  /*  Host or client. */
-  peer_time_t     time;  /*  Current time. */
-  ptrdiff_t       actor; /*  Peer actor id. */
-  peer_slots_t    slots; /*  All sessions. */
-  peer_queue_t    queue; /*  Shared mutual message queue. */
+  kit_allocator_t alloc;       /*  Memory allocator. */
+  peer_mode_t     mode;        /*  Host or client. */
+  peer_time_t     time;        /*  Current mutual time. */
+  peer_time_t     time_local;  /*  Current local time. */
+  ptrdiff_t       actor;       /*  Peer actor id. */
+  peer_slots_t    slots;       /*  All sessions. */
+  peer_queue_t    queue;       /*  Shared mutual message queue. */
+  ptrdiff_t       queue_index; /*  Unprocessed messages index. */
 } peer_t;
 
 kit_status_t peer_init(peer_t *host, peer_mode_t mode,

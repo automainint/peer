@@ -72,7 +72,7 @@ kit_status_t peer_open(peer_t *const peer, peer_ids_ref_t const ids) {
 
     slot->local.id  = ids.values[i];
     slot->remote.id = PEER_UNDEFINED;
-    slot->actor     = i;
+    slot->actor     = peer->mode == PEER_HOST ? i : PEER_UNDEFINED;
 
     DA_INIT(slot->queue, 0, peer->alloc);
   }
@@ -274,13 +274,24 @@ kit_status_t peer_input(peer_t *const            peer,
         uint32_t const actor = peer_read_message_actor(chunk->values);
 
         if (peer->mode == PEER_HOST) {
+          /*  Check the message time.
+           *  Client's messages should not have time set.
+           */
+
+          assert(time == 0);
+
+          if (time != 0) {
+            status |= PEER_ERROR_INVALID_MESSAGE_TIME;
+            continue;
+          }
+
           /*  Check the actor id value.
            */
 
           assert(actor == slot->actor);
 
           if (actor != slot->actor) {
-            status |= PEER_ERROR_INVALID_ACTOR;
+            status |= PEER_ERROR_INVALID_MESSAGE_ACTOR;
             continue;
           }
 
@@ -295,6 +306,9 @@ kit_status_t peer_input(peer_t *const            peer,
 
           if (message_mode == PEER_MESSAGE_MODE_SERVICE && !processed)
             status |= PEER_ERROR_UNKNOWN_SERVICE_ID;
+
+          /*  Add message to the slot queue.
+           */
 
           peer_chunk_ref_t const data = {
             .size   = data_size,
@@ -341,6 +355,9 @@ kit_status_t peer_input(peer_t *const            peer,
           if (message_mode == PEER_MESSAGE_MODE_SERVICE && !processed)
             status |= PEER_ERROR_UNKNOWN_SERVICE_ID;
 
+          /*  Add message to the mutual queue.
+           */
+
           peer_chunk_ref_t const data = {
             .size   = data_size,
             .values = chunk->values + PEER_N_MESSAGE_DATA
@@ -348,6 +365,12 @@ kit_status_t peer_input(peer_t *const            peer,
 
           status |= queue_insert(&peer->queue, index, time, actor,
                                  data, peer->alloc);
+
+          /*  Synchronize mutual time.
+           */
+
+          if (peer->time < time)
+            peer->time = time;
         }
       }
 
@@ -477,9 +500,9 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
     return result;
   }
 
-  if (peer->time > INT64_MAX - time_elapsed) {
+  if (peer->time_local > INT64_MAX - time_elapsed) {
     /*  FIXME
-     *  Initiate a new session and reset time.
+     *  Handle time overflow.
      */
 
     result.status = PEER_ERROR_TIME_OVERFLOW;
@@ -490,11 +513,18 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
 
   /*  Update time.
    */
-  peer->time += time_elapsed;
+  peer->time_local += time_elapsed;
 
   if (peer->mode == PEER_HOST) {
+    /*  Synchronize time.
+     */
+    peer->time = peer->time_local;
+
     /*  Synchronize mutual message queue.
      */
+
+    for (ptrdiff_t i = peer->queue_index; i < peer->queue.size; i++)
+      peer->queue.values[i].time = peer->time;
 
     for (ptrdiff_t i = 1; i < peer->slots.size; i++) {
       peer_slot_t *const slot = peer->slots.values + i;
@@ -519,6 +549,8 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
         result.status |= s;
       }
     }
+
+    peer->queue_index = peer->queue.size;
 
     /*  Send messages to clients.
      */
@@ -562,6 +594,9 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
         } break;
 
         case PEER_SLOT_READY: {
+          /*  Send new messages.
+           */
+
           kit_status_t const s = queue_pack(
               &peer->queue, slot->out_index, slot->local.id,
               slot->remote.id, &result.packets, peer->alloc);
@@ -581,6 +616,9 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
     peer_slot_t *const slot = peer->slots.values;
 
     if (slot->out_index < slot->queue.size) {
+      /*  Send new messages.
+       */
+
       kit_status_t const s = queue_pack(
           &slot->queue, slot->out_index, slot->local.id,
           slot->remote.id, &result.packets, peer->alloc);
@@ -590,6 +628,9 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
 
       result.status |= s;
     } else {
+      /*  Send dummy packet.
+       */
+
       peer_chunks_ref_t chref = { .size = 0, .values = NULL };
 
       result.status |= peer_pack(slot->local.id, slot->remote.id,

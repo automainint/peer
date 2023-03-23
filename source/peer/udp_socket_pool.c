@@ -1,8 +1,8 @@
+#include "udp_socket_pool.h"
+
+#include <assert.h>
+
 #ifndef PEER_DISABLE_SYSTEM_SOCKETS
-#  include "udp_socket_pool.h"
-
-#  include <assert.h>
-
 kit_status_t peer_udp_init(peer_udp_socket_pool_t *const pool,
                            kit_allocator_t const         alloc) {
   assert(pool != NULL);

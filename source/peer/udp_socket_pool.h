@@ -1,10 +1,10 @@
 #ifndef PEER_UDP_SOCKET_POOL_H
 #define PEER_UDP_SOCKET_POOL_H
 
-#ifndef PEER_DISABLE_SYSTEM_SOCKETS
-#  include "peer.h"
-#  include <kit/string_ref.h>
+#include "peer.h"
+#include <kit/string_ref.h>
 
+#ifndef PEER_DISABLE_SYSTEM_SOCKETS
 #  ifdef __cplusplus
 extern "C" {
 #  endif
