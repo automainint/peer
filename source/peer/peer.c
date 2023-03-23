@@ -295,8 +295,7 @@ kit_status_t peer_input(peer_t *const            peer,
             continue;
           }
 
-          /*  TODO
-           *  Process service-level messages.
+          /*  Process service-level messages.
            */
 
           int processed = 0;
@@ -414,6 +413,11 @@ kit_status_t peer_input(peer_t *const            peer,
       continue;
 
     /*  Assign a slot for the client.
+     */
+
+    /*  FIXME
+     *  Check if the client sent a session request or a session resume
+     *  message.
      */
 
     for (ptrdiff_t j = 1; j < peer->slots.size; j++) {
