@@ -30,7 +30,7 @@
 extern "C" {
 #    endif
 
-static int peer_sockets_init() {
+static int peer_sockets_init(void) {
   WSADATA data;
   memset(&data, 0, sizeof data);
   WORD version = MAKEWORD(2, 2);
@@ -39,7 +39,7 @@ static int peer_sockets_init() {
   return 0;
 }
 
-static int peer_sockets_cleanup() {
+static int peer_sockets_cleanup(void) {
   WSACleanup();
   return 0;
 }
@@ -83,12 +83,12 @@ static int peer_socket_set_nonblocking(socket_t s) {
 extern "C" {
 #    endif
 
-static int peer_sockets_init() {
+static int peer_sockets_init(void) {
   signal(SIGPIPE, SIG_IGN);
   return 0;
 }
 
-static int peer_sockets_cleanup() {
+static int peer_sockets_cleanup(void) {
   return 0;
 }
 
