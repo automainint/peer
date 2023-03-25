@@ -2,6 +2,8 @@
 #define PEER_UDP_SOCKET_POOL_H
 
 #include "peer.h"
+#include "sockets.h"
+#include <kit/dynamic_array.h>
 #include <kit/string_ref.h>
 
 #ifndef PEER_DISABLE_SYSTEM_SOCKETS
@@ -12,7 +14,18 @@ extern "C" {
 enum { PEER_ANY_PORT = (uint16_t) -1 };
 
 typedef struct {
-  kit_allocator_t alloc;
+  socket_t  socket;
+  uint16_t  local_port;
+  uint16_t  remote_port;
+  ptrdiff_t remote_address_size;
+  uint8_t   remote_address[PEER_ADDRESS_SIZE - 2];
+} peer_udp_node_t;
+
+typedef KIT_DA(peer_udp_node_t) peer_udp_nodes_t;
+
+typedef struct {
+  kit_allocator_t  alloc;
+  peer_udp_nodes_t nodes;
 } peer_udp_socket_pool_t;
 
 /*  Helper functions to glue the peer library and system sockets.

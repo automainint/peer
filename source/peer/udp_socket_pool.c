@@ -7,11 +7,21 @@ kit_status_t peer_udp_init(peer_udp_socket_pool_t *const pool,
                            kit_allocator_t const         alloc) {
   assert(pool != NULL);
 
+  if (pool == NULL)
+    return PEER_ERROR_INVALID_POOL;
+
+  DA_INIT(pool->nodes, 0, alloc);
+
   return PEER_ERROR_NOT_IMPLEMENTED;
 }
 
 kit_status_t peer_udp_destroy(peer_udp_socket_pool_t *const pool) {
   assert(pool != NULL);
+
+  if (pool == NULL)
+    return PEER_ERROR_INVALID_POOL;
+
+  DA_DESTROY(pool->nodes);
 
   return PEER_ERROR_NOT_IMPLEMENTED;
 }
