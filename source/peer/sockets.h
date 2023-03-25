@@ -17,21 +17,21 @@
 #    define socket_t SOCKET
 #    define socklen_t int
 
-#    define EINPROGRESS WSAEINPROGRESS
-#    define EWOULDBLOCK WSAEWOULDBLOCK
-#    define EMSGSIZE WSAEMSGSIZE
-#    define EISCONN WSAEISCONN
-#    define ECONNRESET WSAECONNRESET
-#    define EADDRINUSE WSAEADDRINUSE
+//#    define EINPROGRESS WSAEINPROGRESS
+//#    define EWOULDBLOCK WSAEWOULDBLOCK
+//#    define EMSGSIZE WSAEMSGSIZE
+//#    define EISCONN WSAEISCONN
+//#    define ECONNRESET WSAECONNRESET
+//#    define EADDRINUSE WSAEADDRINUSE
 
-#    define errno ((int) WSAGetLastError())
+//#    define errno ((int) WSAGetLastError())
 
 #    ifdef __cplusplus
 extern "C" {
 #    endif
 
 static int peer_sockets_init() {
-  WSAData data;
+  WSADATA data;
   memset(&data, 0, sizeof data);
   WORD version = MAKEWORD(2, 2);
   if (WSAStartup(version, &data) != ERROR_SUCCESS)
