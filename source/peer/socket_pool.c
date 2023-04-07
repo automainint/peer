@@ -2,6 +2,8 @@
 
 #include <assert.h>
 
+#include <stdio.h>
+
 #ifndef PEER_DISABLE_SYSTEM_SOCKETS
 static kit_status_t find_pool_node(
     peer_socket_pool_t *const pool, int const protocol,
@@ -55,6 +57,13 @@ static kit_status_t find_pool_node(
 
 static kit_status_t resolve_address_and_id(
     peer_socket_pool_t *const pool, peer_t *const peer) {
+  printf("  pool size: %lld  \n", (long long) pool->nodes.size);
+  for (ptrdiff_t i = 0; i < peer->slots.size; i++)
+    printf("  slot %2lld: %2lld - %2lld\n", (long long) i,
+           (long long) peer->slots.values[i].local.id,
+           (long long) peer->slots.values[i].remote.id);
+  fflush(stdout);
+
   kit_status_t status = KIT_OK;
 
   for (ptrdiff_t i = 0; i < peer->slots.size; i++) {
