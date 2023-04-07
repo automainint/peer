@@ -5,6 +5,8 @@
 
 #ifndef PEER_DISABLE_SYSTEM_SOCKETS
 TEST("socket pool UDP IPv4") {
+  peer_sockets_init();
+
   peer_socket_pool_t pool;
   REQUIRE_EQ(peer_pool_init(&pool, kit_alloc_default()), KIT_OK);
 
@@ -59,5 +61,7 @@ TEST("socket pool UDP IPv4") {
   REQUIRE_EQ(peer_destroy(&host), KIT_OK);
   REQUIRE_EQ(peer_destroy(&client), KIT_OK);
   REQUIRE_EQ(peer_pool_destroy(&pool), KIT_OK);
+
+  peer_sockets_cleanup();
 }
 #endif
