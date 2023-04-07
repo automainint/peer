@@ -2,6 +2,8 @@
 
 #include <assert.h>
 
+#include <stdio.h>
+
 #ifndef PEER_DISABLE_SYSTEM_SOCKETS
 static kit_status_t find_pool_node(
     peer_socket_pool_t *const pool, int const protocol,
@@ -402,6 +404,8 @@ kit_status_t peer_pool_tick(peer_socket_pool_t *const pool,
     if (size == -1 && errno != EAGAIN) {
       assert(errno != EMSGSIZE);
       assert(errno != ECONNRESET);
+      printf("\n  errno %d  \n", (int) errno);
+      fflush(stdout);
       status |= PEER_ERROR_SOCKET_RECEIVE_FAILED;
     }
 
