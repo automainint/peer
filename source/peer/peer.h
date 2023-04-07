@@ -20,6 +20,9 @@ typedef struct {
 typedef struct {
   ptrdiff_t id;
 
+  unsigned is_id_resolved      : 1;
+  unsigned is_address_resolved : 1;
+
   /*  Application-level address representation.
    */
   ptrdiff_t address_size;

@@ -6,9 +6,8 @@ if(NOT DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
   set(CMAKE_BUILD_PARALLEL_LEVEL 4 CACHE STRING "" FORCE)
 endif()
 
-option(PEER_ENABLE_CUSTOM_ALLOC_DISPATCH  "Enable custom alloc dispatch"  OFF)
-option(PEER_DISABLE_SYSTEM_SOCKETS        "Disable system sockets"        OFF)
-option(PEER_ENABLE_TESTING                "Enable testing"                ON)
+option(PEER_DISABLE_SYSTEM_SOCKETS "Disable system sockets" OFF)
+option(PEER_ENABLE_TESTING         "Enable testing"         ON)
 
 project(
   peer
@@ -25,8 +24,7 @@ if(NOT kit_FOUND)
     kit
     GIT_REPOSITORY https://github.com/automainint/kit.git
     GIT_TAG dev)
-  set(KIT_ENABLE_CUSTOM_ALLOC_DISPATCH  ${PEER_ENABLE_CUSTOM_ALLOC_DISPATCH}  CACHE BOOL "" FORCE)
-  set(KIT_ENABLE_TESTING                OFF                                   CACHE BOOL "" FORCE)
+  set(KIT_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(kit)
 endif()
 

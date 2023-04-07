@@ -30,8 +30,11 @@ static int resolve_address_id_(peer_t *const       client,
     return 0;
   if (client->slots.values[0].remote.address_size != 1)
     return 0;
-  client->slots.values[0].remote.id =
-      client->slots.values[0].remote.address_data[0];
+  if (!client->slots.values[0].remote.is_id_resolved) {
+    client->slots.values[0].remote.id =
+        client->slots.values[0].remote.address_data[0];
+    client->slots.values[0].remote.is_id_resolved = 1;
+  }
   return has_id_(host, client->slots.values[0].remote.id);
 }
 
@@ -205,7 +208,7 @@ TEST("peer host to client initial state update") {
 
   /*  Check if client's data was updated.
    */
-  REQUIRE(client.queue.size == 3);
+  REQUIRE_EQ(client.queue.size, 3);
   REQUIRE(client.queue.size == 3 && client.queue.values[0].time == 0);
   REQUIRE(client.queue.size == 3 &&
           client.queue.values[0].actor == 0);

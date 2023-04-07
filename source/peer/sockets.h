@@ -76,8 +76,8 @@ static int peer_socket_set_nonblocking(socket_t s) {
 #    include <unistd.h>
 
 #    define socket_t int
-
 #    define closesocket close
+#    define INVALID_SOCKET -1
 
 #    ifdef __cplusplus
 extern "C" {

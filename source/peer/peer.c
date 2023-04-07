@@ -56,13 +56,17 @@ kit_status_t peer_open(peer_t *const peer, peer_ids_ref_t const ids) {
   if (ids.size == 0)
     return KIT_OK;
   if (ids.values == NULL)
-    return PEER_ERROR_INVALID_IDS;
+    return PEER_ERROR_INVALID_ID;
 
   ptrdiff_t const n = peer->slots.size;
 
   DA_RESIZE(peer->slots, n + ids.size);
-  if (peer->slots.size != n + ids.size)
+
+  assert(peer->slots.size == n + ids.size);
+  if (peer->slots.size != n + ids.size) {
+    DA_RESIZE(peer->slots, n);
     return PEER_ERROR_BAD_ALLOC;
+  }
 
   memset(peer->slots.values + n, 0,
          ids.size * sizeof *peer->slots.values);
@@ -70,9 +74,10 @@ kit_status_t peer_open(peer_t *const peer, peer_ids_ref_t const ids) {
   for (ptrdiff_t i = 0; i < ids.size; i++) {
     peer_slot_t *slot = peer->slots.values + (n + i);
 
-    slot->local.id  = ids.values[i];
-    slot->remote.id = PEER_UNDEFINED;
-    slot->actor     = peer->mode == PEER_HOST ? i : PEER_UNDEFINED;
+    slot->local.id             = ids.values[i];
+    slot->local.is_id_resolved = 1;
+    slot->remote.id            = PEER_UNDEFINED;
+    slot->actor = peer->mode == PEER_HOST ? i : PEER_UNDEFINED;
 
     DA_INIT(slot->queue, 0, peer->alloc);
   }
@@ -218,8 +223,9 @@ kit_status_t peer_connect(peer_t *const   client,
     peer_slot_t *const slot = client->slots.values + i;
 
     if (slot->remote.id == PEER_UNDEFINED) {
-      slot->remote.id           = server_id;
-      slot->remote.address_size = 0;
+      slot->remote.id             = server_id;
+      slot->remote.is_id_resolved = 1;
+      slot->remote.address_size   = 0;
 
       return KIT_OK;
     }
@@ -241,6 +247,18 @@ kit_status_t peer_input(peer_t *const            peer,
     peer_packet_t const *const packet = packets.values + i;
 
     int slot_found = 0;
+
+    /*  Skip if packet not intended for this peer.
+     */
+    for (ptrdiff_t j = 0; j < peer->slots.size; j++)
+      if (peer->slots.values[j].local.id == packet->destination_id) {
+        slot_found = 1;
+        break;
+      }
+    if (!slot_found)
+      continue;
+
+    slot_found = 0;
 
     for (ptrdiff_t j = 0; j < peer->slots.size; j++) {
       peer_slot_t *const slot = peer->slots.values + j;
@@ -358,8 +376,12 @@ kit_status_t peer_input(peer_t *const            peer,
                 /*  Update client's actor id and host remote address.
                  */
                 assert(data_size - 1 <= PEER_ADDRESS_SIZE);
-                peer->actor               = actor;
-                slot->remote.address_size = data_size - 1;
+                peer->actor = actor;
+
+                /*  We need new id for new remote port.
+                 */
+                slot->remote.is_id_resolved = 0;
+                slot->remote.address_size   = data_size - 1;
                 memcpy(slot->remote.address_data,
                        chunk->values + PEER_N_MESSAGE_DATA + 1,
                        data_size - 1);
@@ -413,8 +435,9 @@ kit_status_t peer_input(peer_t *const            peer,
 
     if (slot_found || peer->mode != PEER_HOST ||
         peer->slots.size == 0 ||
-        peer->slots.values[0].remote.id != PEER_UNDEFINED)
+        peer->slots.values[0].remote.id != PEER_UNDEFINED) {
       continue;
+    }
 
     /*  Assign a slot for the client.
      */
@@ -428,12 +451,18 @@ kit_status_t peer_input(peer_t *const            peer,
 
       if (slot->remote.id == PEER_UNDEFINED &&
           slot->local.address_size > 0) {
-        slot->state     = PEER_SLOT_SESSION_REQUEST;
-        slot->remote.id = packet->source_id;
-        slot->actor     = j;
+        slot->state                 = PEER_SLOT_SESSION_REQUEST;
+        slot->remote.id             = packet->source_id;
+        slot->remote.is_id_resolved = 1;
+        slot->actor                 = j;
+
+        slot_found = 1;
         break;
       }
     }
+
+    if (!slot_found)
+      status |= PEER_ERROR_NO_FREE_SLOTS;
   }
 
   return status;
@@ -683,6 +712,8 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
       peer_slot_t *const slot = peer->slots.values + i;
 
       switch (slot->state) {
+        case PEER_SLOT_EMPTY: break;
+
         case PEER_SLOT_SESSION_REQUEST: {
           /*  Send the session response message.
            */

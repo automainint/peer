@@ -12,11 +12,12 @@ extern "C" {
 #  endif
 
 enum {
+  PEER_ANY_PROTOCOL = 0,
   PEER_UDP_IPv4,
   PEER_UDP_IPv6,
   PEER_TCP_IPv4,
   PEER_TCP_IPv6,
-  PEER_ANY_PORT = 0xffff
+  PEER_ANY_PORT = 0
 };
 
 typedef struct {
