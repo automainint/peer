@@ -2,6 +2,8 @@
 
 #include <assert.h>
 
+#include <stdio.h>
+
 #ifndef PEER_DISABLE_SYSTEM_SOCKETS
 static kit_status_t find_pool_node(
     peer_socket_pool_t *const pool, int const protocol,
@@ -240,6 +242,8 @@ kit_status_t peer_pool_open(peer_socket_pool_t *const pool,
         peer_node_t *const node = pool->nodes.values + (n + i);
 
         node->socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        printf("\n  errno %d  \n", (int) errno);
+        fflush(stdout);
         assert(node->socket != INVALID_SOCKET);
 
         if (node->socket == INVALID_SOCKET) {
