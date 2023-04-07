@@ -298,8 +298,14 @@ kit_status_t peer_pool_open(peer_socket_pool_t *const pool,
 
     case PEER_UDP_IPv6:
     case PEER_TCP_IPv4:
-    case PEER_TCP_IPv6: status |= PEER_ERROR_NOT_IMPLEMENTED; break;
-    default: status |= PEER_ERROR_UNKNOWN_PROTOCOL;
+    case PEER_TCP_IPv6:
+      assert(0);
+      status |= PEER_ERROR_NOT_IMPLEMENTED;
+      break;
+
+    default:     //
+      assert(0); //
+      status |= PEER_ERROR_UNKNOWN_PROTOCOL;
   }
 
   DA(ptrdiff_t) ids;
@@ -313,7 +319,10 @@ kit_status_t peer_pool_open(peer_socket_pool_t *const pool,
     printf("  open  \n");
     fflush(stdout);
 
-    status |= peer_open(peer, ref);
+    kit_status_t s = peer_open(peer, ref);
+    printf("  status 0x%08x  \n", (int) s);
+    fflush(stdout);
+    status |= s;
     DA_DESTROY(ids);
   } else {
     status |= PEER_ERROR_BAD_ALLOC;

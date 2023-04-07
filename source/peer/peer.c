@@ -61,8 +61,8 @@ kit_status_t peer_open(peer_t *const peer, peer_ids_ref_t const ids) {
   ptrdiff_t const n = peer->slots.size;
 
   DA_RESIZE(peer->slots, n + ids.size);
-
   assert(peer->slots.size == n + ids.size);
+
   if (peer->slots.size != n + ids.size) {
     DA_RESIZE(peer->slots, n);
     return PEER_ERROR_BAD_ALLOC;
