@@ -401,12 +401,16 @@ kit_status_t peer_pool_tick(peer_socket_pool_t *const pool,
         node->socket, buf, PEER_PACKET_SIZE, 0,
         (struct sockaddr *) &remote, &len);
 
-    if (size == -1 && errno != EAGAIN) {
-      assert(errno != EMSGSIZE);
-      assert(errno != ECONNRESET);
-      printf("\n  errno %d  \n", (int) errno);
-      fflush(stdout);
-      status |= PEER_ERROR_SOCKET_RECEIVE_FAILED;
+    if (size == -1) {
+      int const er = errno;
+
+      if (er != EAGAIN) {
+        assert(er != EMSGSIZE);
+        assert(er != ECONNRESET);
+
+        if (er != 0)
+          status |= PEER_ERROR_SOCKET_RECEIVE_FAILED;
+      }
     }
 
     if (size <= 0)
@@ -507,10 +511,11 @@ kit_status_t peer_pool_tick(peer_socket_pool_t *const pool,
         src->socket, packet->data, packet->size, 0,
         (struct sockaddr const *) &name, sizeof name);
 
-    if (n == -1) {
-      assert(errno != EMSGSIZE);
-      assert(errno != ECONNRESET);
-      assert(errno != EWOULDBLOCK);
+    if (n != packet->size) {
+      int const er = errno;
+      assert(er != EMSGSIZE);
+      assert(er != ECONNRESET);
+      assert(er != EWOULDBLOCK);
       status |= PEER_ERROR_SOCKET_SEND_FAILED;
     }
   }
