@@ -7,14 +7,16 @@
 extern "C" {
 #endif
 
+/* Undefined value for id, index and agent.
+ */
+#define PEER_UNDEFINED -1
+
 enum {
   /*  Internal constants.
    */
 
   PEER_VERSION     = 1,
   PEER_DEVELOPMENT = 1,
-
-  PEER_UNDEFINED = -1, /* Undefined value for id, index and agent. */
 
   PEER_ADDRESS_SIZE =
       64, /* Address size should be big enough to contain IPv4 and
