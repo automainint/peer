@@ -57,6 +57,7 @@ static kit_status_t find_pool_node(
 
 static kit_status_t resolve_address_and_id(
     peer_socket_pool_t *const pool, peer_t *const peer) {
+  printf("\n");
   printf("  pool size: %lld  \n", (long long) pool->nodes.size);
   for (ptrdiff_t i = 0; i < peer->slots.size; i++)
     printf("  slot %2lld: %2lld - %2lld\n", (long long) i,
@@ -221,6 +222,9 @@ kit_status_t peer_pool_open(peer_socket_pool_t *const pool,
   assert(peer != NULL);
   assert(count > 0);
 
+  printf("\n  init pool %lld  \n", (long long) count);
+  fflush(stdout);
+
   if (pool == NULL)
     return PEER_ERROR_INVALID_POOL;
   if (peer == NULL)
@@ -246,7 +250,7 @@ kit_status_t peer_pool_open(peer_socket_pool_t *const pool,
              count * sizeof *pool->nodes.values);
 
       for (ptrdiff_t i = 0; i < count; i++) {
-        peer_node_t *node = pool->nodes.values + n + i;
+        peer_node_t *const node = pool->nodes.values + (n + i);
 
         node->socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
@@ -285,6 +289,9 @@ kit_status_t peer_pool_open(peer_socket_pool_t *const pool,
         node->protocol    = PEER_UDP_IPv4;
         node->local_port  = ntohs(name.sin_port);
         node->remote_port = PEER_ANY_PORT;
+
+        printf("  socket %d done  \n", (int) i);
+        fflush(stdout);
       }
 
       break;
@@ -303,6 +310,9 @@ kit_status_t peer_pool_open(peer_socket_pool_t *const pool,
     for (ptrdiff_t i = 0; i < count; i++) ids.values[i] = n + i;
     peer_ids_ref_t const ref = { .size   = ids.size,
                                  .values = ids.values };
+    printf("  open  \n");
+    fflush(stdout);
+
     status |= peer_open(peer, ref);
     DA_DESTROY(ids);
   } else {
@@ -310,6 +320,9 @@ kit_status_t peer_pool_open(peer_socket_pool_t *const pool,
   }
 
   if (status != KIT_OK) {
+    printf("  revert  \n");
+    fflush(stdout);
+
     for (ptrdiff_t i = n; i < pool->nodes.size; i++)
       if (pool->nodes.values[i].socket != INVALID_SOCKET)
         closesocket(pool->nodes.values[i].socket);
