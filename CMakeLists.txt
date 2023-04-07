@@ -74,7 +74,7 @@ if(PEER_ENABLE_TESTING)
   set_tests_properties(
     peer_unittests
     PROPERTIES
-    TIMEOUT "120")
+    TIMEOUT "20")
 endif()
 
 add_subdirectory(source)
