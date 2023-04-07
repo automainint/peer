@@ -859,13 +859,13 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
         DA_RESIZE(chunks, 0);
         result.status |= PEER_ERROR_BAD_ALLOC;
       } else {
-        ptrdiff_t const index        = PEER_UNDEFINED;
-        uint8_t const   id_heartbeat = PEER_M_HEARTBEAT;
+        ptrdiff_t const   index        = PEER_UNDEFINED;
+        peer_time_t const time         = 0;
+        uint8_t const     id_heartbeat = PEER_M_HEARTBEAT;
 
-        peer_write_message(chunks.values[0].values,
-                           PEER_MESSAGE_MODE_SERVICE, index,
-                           peer->time_local, peer->actor,
-                           sizeof id_heartbeat, &id_heartbeat);
+        peer_write_message(
+            chunks.values[0].values, PEER_MESSAGE_MODE_SERVICE, index,
+            time, peer->actor, sizeof id_heartbeat, &id_heartbeat);
       }
 
       result.status |= chunks_append_trail(&peer->queue,

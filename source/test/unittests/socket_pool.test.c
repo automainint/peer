@@ -28,6 +28,8 @@ TEST("socket pool UDP IPv4") {
   REQUIRE_EQ(peer_pool_tick(&pool, &client, 0), KIT_OK);
   REQUIRE_EQ(peer_pool_tick(&pool, &host, 0), KIT_OK);
   REQUIRE_EQ(peer_pool_tick(&pool, &client, 0), KIT_OK);
+  REQUIRE_EQ(peer_pool_tick(&pool, &host, 0), KIT_OK);
+  REQUIRE_EQ(peer_pool_tick(&pool, &client, 0), KIT_OK);
 
   uint8_t          data[]      = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
   peer_chunk_ref_t data_ref[3] = { { .size = 2, .values = data },
@@ -41,6 +43,8 @@ TEST("socket pool UDP IPv4") {
 
   REQUIRE_EQ(peer_pool_tick(&pool, &host, 12), KIT_OK);
   REQUIRE_EQ(peer_pool_tick(&pool, &client, 12), KIT_OK);
+  REQUIRE_EQ(peer_pool_tick(&pool, &host, 0), KIT_OK);
+  REQUIRE_EQ(peer_pool_tick(&pool, &client, 0), KIT_OK);
 
   REQUIRE_EQ(client.queue.size, 3);
   REQUIRE(client.queue.size == 3 &&
