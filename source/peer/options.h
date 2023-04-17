@@ -37,7 +37,7 @@ enum {
   PEER_TRAIL_SCATTER_SIZE =
       5, /* Number of randomly picked previous messages to resend. */
 
-  PEER_TRAIL_SCATTER_DISTACNE =
+  PEER_TRAIL_SCATTER_DISTANCE =
       100, /* Maximum distance of randomly picked previous messages to
               resend. */
 

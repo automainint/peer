@@ -27,8 +27,16 @@ kit_status_t peer_init(peer_t *const peer, peer_mode_t const mode,
     return PEER_ERROR_INVALID_MODE;
 
   memset(peer, 0, sizeof *peer);
+
   peer->alloc = alloc;
   peer->mode  = mode;
+
+  /*  We don't need strong unpredictable random numbers.
+   */
+  uint64_t const seed = 12345;
+
+  mt64_init(&peer->mt64, seed);
+  mt64_rotate(&peer->mt64);
 
   DA_INIT(peer->slots, 0, alloc);
   DA_INIT(peer->queue, 0, alloc);
@@ -469,17 +477,19 @@ kit_status_t peer_input(peer_t *const            peer,
 }
 
 static kit_status_t chunks_append_trail(
-    peer_queue_t const *const q, ptrdiff_t const index,
-    peer_chunks_t *const out_chunks) {
+    mt64_state_t *const rng, peer_queue_t const *const q,
+    ptrdiff_t const index, peer_chunks_t *const out_chunks) {
+  assert(rng != NULL);
   assert(q != NULL);
   assert(out_chunks != NULL);
   assert(index >= 0 && index <= q->size);
 
   kit_allocator_t const alloc = out_chunks->alloc;
 
-  ptrdiff_t trail_size = PEER_TRAIL_SERIAL_SIZE - (q->size - index);
+  ptrdiff_t trail_size = PEER_TRAIL_SERIAL_SIZE;
 
-  if (trail_size > index)
+  if (trail_size > index ||
+      index - trail_size < PEER_TRAIL_SCATTER_DISTANCE)
     trail_size = index;
 
   if (trail_size > 0) {
@@ -514,9 +524,48 @@ static kit_status_t chunks_append_trail(
     }
   }
 
-  /*  TODO
-   *  Send random previous messages.
-   */
+  ptrdiff_t scatter_trail_distance = PEER_TRAIL_SCATTER_DISTANCE;
+  ptrdiff_t scatter_trail_size     = PEER_TRAIL_SCATTER_SIZE;
+
+  if (scatter_trail_distance > index - trail_size)
+    scatter_trail_distance = index - trail_size;
+  if (scatter_trail_size > scatter_trail_distance)
+    scatter_trail_size = scatter_trail_distance;
+
+  if (scatter_trail_size > 0) {
+    ptrdiff_t const offset = out_chunks->size;
+    DA_RESIZE(*out_chunks, offset + scatter_trail_size);
+    assert(out_chunks->size == offset + scatter_trail_size);
+    if (out_chunks->size != offset + scatter_trail_size)
+      return PEER_ERROR_BAD_ALLOC;
+
+    ptrdiff_t const trail_begin = index - scatter_trail_distance;
+
+    for (ptrdiff_t i = 0; i < scatter_trail_size; i++) {
+      ptrdiff_t const message_index =
+          trail_begin +
+          (ptrdiff_t) (mt64_generate(rng) %
+                       (uint64_t) scatter_trail_distance);
+
+      peer_message_t const *const message = q->values + message_index;
+      peer_chunk_t *const chunk = out_chunks->values + (offset + i);
+      ptrdiff_t const     chunk_size = PEER_N_MESSAGE_DATA +
+                                   message->data.size;
+
+      DA_INIT(*chunk, chunk_size, alloc);
+
+      if (chunk->size != chunk_size) {
+        for (ptrdiff_t j = 0; j <= i; j++)
+          DA_DESTROY(out_chunks->values[offset + j]);
+        DA_RESIZE(*out_chunks, offset);
+        return PEER_ERROR_BAD_ALLOC;
+      }
+
+      peer_write_message(chunk->values, PEER_MESSAGE_MODE_APPLICATION,
+                         message_index, message->time, message->actor,
+                         message->data.size, message->data.values);
+    }
+  }
 
   return KIT_OK;
 }
@@ -553,7 +602,8 @@ static chunks_wrap_t chunks_wrap(peer_chunks_t const *const chunks,
   return result;
 }
 
-static kit_status_t queue_pack(peer_queue_t const *const q,
+static kit_status_t queue_pack(mt64_state_t *const       rng,
+                               peer_queue_t const *const q,
                                ptrdiff_t const           index,
                                ptrdiff_t                 source_id,
                                ptrdiff_t             destination_id,
@@ -561,6 +611,7 @@ static kit_status_t queue_pack(peer_queue_t const *const q,
                                kit_allocator_t       alloc) {
   ptrdiff_t const size = q->size - index;
 
+  assert(rng != NULL);
   assert(q != NULL);
   assert(size >= 0);
 
@@ -602,7 +653,7 @@ static kit_status_t queue_pack(peer_queue_t const *const q,
   /*  Append trail messages.
    */
 
-  kit_status_t result = chunks_append_trail(q, index, &chunks);
+  kit_status_t result = chunks_append_trail(rng, q, index, &chunks);
 
   /*  Pack messages into packets.
    */
@@ -754,8 +805,9 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
              */
 
             kit_status_t const s = queue_pack(
-                &peer->queue, slot->out_index, slot->local.id,
-                slot->remote.id, &result.packets, peer->alloc);
+                &peer->mt64, &peer->queue, slot->out_index,
+                slot->local.id, slot->remote.id, &result.packets,
+                peer->alloc);
 
             if (s == KIT_OK)
               slot->out_index = peer->queue.size;
@@ -795,7 +847,7 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
             }
 
             result.status |= chunks_append_trail(
-                &peer->queue, slot->out_index, &chunks);
+                &peer->mt64, &peer->queue, slot->out_index, &chunks);
 
             chunks_wrap_t const wrap = chunks_wrap(&chunks,
                                                    peer->alloc);
@@ -831,7 +883,7 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
        */
 
       kit_status_t const s = queue_pack(
-          &slot->queue, slot->out_index, slot->local.id,
+          &peer->mt64, &slot->queue, slot->out_index, slot->local.id,
           slot->remote.id, &result.packets, peer->alloc);
 
       if (s == KIT_OK)
@@ -868,7 +920,7 @@ peer_tick_result_t peer_tick(peer_t *const     peer,
             time, peer->actor, sizeof id_heartbeat, &id_heartbeat);
       }
 
-      result.status |= chunks_append_trail(&peer->queue,
+      result.status |= chunks_append_trail(&peer->mt64, &peer->queue,
                                            slot->out_index, &chunks);
 
       chunks_wrap_t const wrap = chunks_wrap(&chunks, peer->alloc);

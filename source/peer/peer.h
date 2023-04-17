@@ -4,6 +4,7 @@
 #include "packet.h"
 
 #include <kit/allocator.h>
+#include <kit/mersenne_twister_64.h>
 #include <kit/status.h>
 
 #ifdef __cplusplus
@@ -59,14 +60,15 @@ typedef KIT_AR(ptrdiff_t) peer_ids_ref_t;
 typedef enum { PEER_HOST, PEER_CLIENT } peer_mode_t;
 
 typedef struct {
-  kit_allocator_t alloc;       /*  Memory allocator. */
-  peer_mode_t     mode;        /*  Host or client. */
-  peer_time_t     time;        /*  Current mutual time. */
-  peer_time_t     time_local;  /*  Current local time. */
-  ptrdiff_t       actor;       /*  Peer actor id. */
-  peer_slots_t    slots;       /*  All sessions. */
-  peer_queue_t    queue;       /*  Shared mutual message queue. */
-  ptrdiff_t       queue_index; /*  Unprocessed messages index. */
+  kit_allocator_t  alloc;       /*  Memory allocator. */
+  peer_mode_t      mode;        /*  Host or client. */
+  peer_time_t      time;        /*  Current mutual time. */
+  peer_time_t      time_local;  /*  Current local time. */
+  ptrdiff_t        actor;       /*  Peer actor id. */
+  peer_slots_t     slots;       /*  All sessions. */
+  peer_queue_t     queue;       /*  Shared mutual message queue. */
+  ptrdiff_t        queue_index; /*  Unprocessed messages index. */
+  kit_mt64_state_t mt64;        /*  Random number generator. */
 } peer_t;
 
 kit_status_t peer_init(peer_t *host, peer_mode_t mode,
